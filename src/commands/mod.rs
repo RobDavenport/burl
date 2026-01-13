@@ -1,14 +1,17 @@
 //! Command implementations for burl.
 //!
 //! This module provides the dispatcher that routes CLI commands to their
-//! implementations. The `init` command is fully implemented; other commands
-//! are currently stubbed with "not implemented" messages.
+//! implementations.
 
+mod add;
 mod init;
+mod show;
+mod status;
+mod worktree;
 
 use crate::cli::{
-    AddArgs, ApproveArgs, ClaimArgs, CleanArgs, Command, DoctorArgs, LockAction, LockClearArgs,
-    LockCommand, RejectArgs, ShowArgs, SubmitArgs, ValidateArgs, WorktreeArgs,
+    ApproveArgs, ClaimArgs, CleanArgs, Command, DoctorArgs, LockAction, LockClearArgs,
+    LockCommand, RejectArgs, SubmitArgs, ValidateArgs,
 };
 use crate::config::Config;
 use crate::context::require_initialized_workflow;
@@ -24,15 +27,15 @@ use serde_json::json;
 pub fn dispatch(command: Command) -> Result<()> {
     match command {
         Command::Init => init::cmd_init(),
-        Command::Add(args) => cmd_add(args),
-        Command::Status => cmd_status(),
-        Command::Show(args) => cmd_show(args),
+        Command::Add(args) => add::cmd_add(args),
+        Command::Status => status::cmd_status(),
+        Command::Show(args) => show::cmd_show(args),
         Command::Claim(args) => cmd_claim(args),
         Command::Submit(args) => cmd_submit(args),
         Command::Validate(args) => cmd_validate(args),
         Command::Approve(args) => cmd_approve(args),
         Command::Reject(args) => cmd_reject(args),
-        Command::Worktree(args) => cmd_worktree(args),
+        Command::Worktree(args) => worktree::cmd_worktree(args),
         Command::Lock(lock_cmd) => dispatch_lock(lock_cmd),
         Command::Doctor(args) => cmd_doctor(args),
         Command::Clean(args) => cmd_clean(args),
@@ -50,21 +53,8 @@ fn dispatch_lock(lock_cmd: LockCommand) -> Result<()> {
 // ============================================================================
 // Command Implementations (Stubs)
 // ============================================================================
-// Most commands below are stubbed and will be implemented in later tasks.
+// Commands below are stubbed and will be implemented in later tasks.
 // Each stub returns a NotImplemented error with exit code 1.
-// The `init` command is implemented in the `init` module.
-
-fn cmd_add(_args: AddArgs) -> Result<()> {
-    Err(BurlError::NotImplemented("burl add".to_string()))
-}
-
-fn cmd_status() -> Result<()> {
-    Err(BurlError::NotImplemented("burl status".to_string()))
-}
-
-fn cmd_show(_args: ShowArgs) -> Result<()> {
-    Err(BurlError::NotImplemented("burl show".to_string()))
-}
 
 fn cmd_claim(_args: ClaimArgs) -> Result<()> {
     Err(BurlError::NotImplemented("burl claim".to_string()))
@@ -84,10 +74,6 @@ fn cmd_approve(_args: ApproveArgs) -> Result<()> {
 
 fn cmd_reject(_args: RejectArgs) -> Result<()> {
     Err(BurlError::NotImplemented("burl reject".to_string()))
-}
-
-fn cmd_worktree(_args: WorktreeArgs) -> Result<()> {
-    Err(BurlError::NotImplemented("burl worktree".to_string()))
 }
 
 fn cmd_lock_list() -> Result<()> {
@@ -212,41 +198,9 @@ mod tests {
     use super::*;
     use crate::exit_codes;
 
-    // Note: init is now fully implemented and tested in the init module.
-    // The dispatch test for init requires a git repo, so it's tested in init module.
-
-    #[test]
-    fn add_returns_not_implemented() {
-        let args = AddArgs {
-            title: "Test".to_string(),
-            priority: "high".to_string(),
-            affects: vec![],
-            affects_globs: vec![],
-            must_not_touch: vec![],
-            depends_on: vec![],
-            tags: vec![],
-        };
-        let result = cmd_add(args);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
-
-    #[test]
-    fn status_returns_not_implemented() {
-        let result = cmd_status();
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
-
-    #[test]
-    fn show_returns_not_implemented() {
-        let args = ShowArgs {
-            task_id: "TASK-001".to_string(),
-        };
-        let result = cmd_show(args);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
+    // Note: init, add, status, show, and worktree are now fully implemented.
+    // Integration tests for these commands are in their respective modules.
+    // Tests that require a git repo are tested in their individual modules.
 
     #[test]
     fn claim_returns_not_implemented() {
@@ -291,14 +245,6 @@ mod tests {
             reason: "Test reason".to_string(),
         };
         let result = cmd_reject(args);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
-
-    #[test]
-    fn worktree_returns_not_implemented() {
-        let args = WorktreeArgs { task_id: None };
-        let result = cmd_worktree(args);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
     }
@@ -359,14 +305,5 @@ mod tests {
         let result = cmd_clean(args);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
-
-    #[test]
-    fn dispatch_routes_to_correct_handler() {
-        // Test that dispatch correctly routes stubbed commands
-        // (init is tested separately in the init module since it needs a real git repo)
-        let result = dispatch(Command::Status);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("burl status"));
     }
 }

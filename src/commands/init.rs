@@ -458,6 +458,8 @@ fn push_workflow_branch(ctx: &WorkflowContext, config: &Config) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
+    use std::path::PathBuf;
     use std::process::Command;
     use tempfile::TempDir;
 
@@ -729,13 +731,30 @@ mod tests {
         assert_eq!(log1.stdout, log2.stdout);
     }
 
+    /// RAII guard for changing current directory - restores on drop.
+    struct DirGuard {
+        original: PathBuf,
+    }
+
+    impl DirGuard {
+        fn new(new_dir: &std::path::Path) -> Self {
+            let original = std::env::current_dir().unwrap();
+            std::env::set_current_dir(new_dir).unwrap();
+            Self { original }
+        }
+    }
+
+    impl Drop for DirGuard {
+        fn drop(&mut self) {
+            let _ = std::env::set_current_dir(&self.original);
+        }
+    }
+
     #[test]
+    #[serial]
     fn test_full_init_flow() {
         let temp_dir = create_test_repo();
-
-        // Change to the test directory to simulate running from repo root
-        let _original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp_dir.path()).unwrap();
+        let _guard = DirGuard::new(temp_dir.path());
 
         // Resolve context (this simulates what cmd_init does internally)
         let ctx = resolve_context().unwrap();
@@ -757,8 +776,5 @@ mod tests {
         assert!(ctx.config_path().exists());
         assert!(ctx.events_dir().exists());
         assert!(ctx.locks_dir.exists());
-
-        // Restore original directory
-        std::env::set_current_dir(_original_dir).ok();
     }
 }

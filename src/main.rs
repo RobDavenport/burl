@@ -15,6 +15,7 @@ pub mod fs;
 pub mod git;
 pub mod locks;
 pub mod task;
+pub mod workflow;
 
 use cli::Cli;
 use std::process::ExitCode;
