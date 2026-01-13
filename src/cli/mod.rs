@@ -75,7 +75,7 @@ pub enum Command {
     /// and preserves the branch/worktree for rework.
     Reject(RejectArgs),
 
-    /// Show or manage the worktree path for a task.
+    /// Show the recorded worktree path for a task.
     ///
     /// Prints the recorded worktree path for a task.
     Worktree(WorktreeArgs),
@@ -192,8 +192,8 @@ pub struct RejectArgs {
 /// Arguments for the `worktree` command.
 #[derive(Parser, Debug)]
 pub struct WorktreeArgs {
-    /// Task ID to get worktree path for. If omitted, shows current worktree info.
-    pub task_id: Option<String>,
+    /// Task ID to get worktree path for (e.g., TASK-001).
+    pub task_id: String,
 }
 
 /// Lock subcommands.
@@ -449,7 +449,7 @@ mod tests {
     fn parse_worktree() {
         let cli = Cli::try_parse_from(["burl", "worktree", "TASK-001"]).unwrap();
         if let Command::Worktree(args) = cli.command {
-            assert_eq!(args.task_id, Some("TASK-001".to_string()));
+            assert_eq!(args.task_id, "TASK-001");
         } else {
             panic!("Expected Worktree command");
         }

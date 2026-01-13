@@ -74,7 +74,7 @@ We need a **simple** workflow that:
 - No long-running daemon/service.
 - No distributed lock service.
 - No networked agent management or infra.
-- No fancy UI requirements (TUI/“watch mode” is **V2**).
+- No hard dependency on a full-screen UI (the optional `burl monitor` / `burl watch` are lightweight conveniences, not core requirements).
 - No PR creation automation (can be added later).
 
 ---
@@ -89,7 +89,7 @@ We need a **simple** workflow that:
 - Needs to validate quickly and reject with actionable reasons.
 
 ### Persona C — Automation runner
-- Later wants `burl watch` (V2) to auto-claim/validate.
+- Wants `burl watch` to auto-claim and process QA (optional).
 
 ---
 
@@ -281,7 +281,7 @@ May exist in V1 but execution is not required for the core tool. Keep it stable 
 - **DOING**: claimed tasks with worktrees/branches
 - **QA**: submitted tasks awaiting validation
 - **DONE**: approved and merged
-- **BLOCKED**: dependencies unmet or external constraints
+- **BLOCKED**: dependencies unmet, max QA attempts reached, or external constraints
 
 ### 9.2 Transition diagram
 
@@ -292,6 +292,8 @@ READY ─────────► DOING ───────► QA ───
    │              │              │
    └──── reject ◄─┘              └── reject ─► READY
             (from QA)
+
+QA ── reject (max attempts) ───────────────► BLOCKED
 ```
 
 ### 9.3 Transition rules (high-level)
@@ -300,11 +302,11 @@ READY ─────────► DOING ───────► QA ───
 - `submit`: DOING → QA (runs scope+stub gates, records `submitted_at`)
 - `validate`: QA (runs deterministic checks; no transition)
 - `approve`: QA → DONE (rebase + `--ff-only` merge; cleanup)
-- `reject`: QA → READY (increments `qa_attempts`, appends reason, preserves branch/worktree)
+- `reject`: QA → READY (or BLOCKED after max attempts; increments `qa_attempts`, appends reason, preserves branch/worktree)
 
 Optional:
-- `block`: READY/DOING/QA → BLOCKED (requires reason)
-- `unblock`: BLOCKED → READY (if deps satisfied)
+- `block`: READY/DOING/QA → BLOCKED (requires reason; future)
+- `unblock`: BLOCKED → READY (if deps satisfied; future)
 
 ---
 
@@ -564,7 +566,7 @@ If `build_command` is non-empty:
   - (recommended) add `.burl/` and `.worktrees/` to `.git/info/exclude` so `git status` stays clean without touching `main`
 
 #### Task management
-- `burl add "title" [--priority] [--affects ...] [--must-not-touch ...] [--depends-on ...] [--tags ...]`
+- `burl add "title" [--priority] [--affects ...] [--affects-globs ...] [--must-not-touch ...] [--depends-on ...] [--tags ...]`
   - creates task in `.burl/.workflow/READY/` and commits workflow state (if enabled)
 
 - `burl status`
@@ -583,7 +585,7 @@ If `build_command` is non-empty:
   - runs scope+stub checks (diff-based) and requires at least one commit
   - writes `submitted_at`, moves DOING → QA in `.burl/.workflow/`
 
-- `burl worktree [TASK-ID]`
+- `burl worktree TASK-ID`
   - prints recorded worktree path
 
 #### QA operations
@@ -597,7 +599,12 @@ If `build_command` is non-empty:
   - cleans up worktree, moves to DONE, sets `completed_at`
 
 - `burl reject TASK-ID --reason "..."`
-  - increments attempts, appends reason, moves to READY
+  - increments attempts, appends reason, moves to READY (or BLOCKED after `qa_max_attempts`)
+
+#### Automation (optional)
+- `burl watch`                           # auto-claim READY tasks and process QA tasks
+- `burl watch --approve`                 # also auto-approve passing QA tasks
+- `burl monitor`                         # lightweight dashboard (aliases: `visualizer`, `viz`, `dashboard`)
 
 #### Locks & recovery
 - `burl lock list`
@@ -626,7 +633,7 @@ If `build_command` is non-empty:
 
 **Steps:**
 1. Verify task file exists in READY (in the workflow worktree) and parses.
-2. Verify dependencies are DONE; else move to BLOCKED (optional) and fail.
+2. Verify dependencies are DONE; else fail with a user error (task stays in READY).
 3. Check conflicts with DOING tasks (declared overlap):
    - if `conflict_policy=fail` → fail
    - if warn → print warning, allow
@@ -817,10 +824,9 @@ src/player/jump.rs:45  + // TODO: implement cooldown
 8. **approve** (rebase + ff-only) + cleanup  
 9. **reject** + attempt policy  
 10. **events log** + `clean` + lock tools  
+11. **optional utilities**: `watch` automation loop + `monitor` dashboard
 
 ### V2 (post-V1)
-- `burl watch` automation loop
-- `burl monitor` TUI dashboard
 - `agents.yaml` execution + prompt generation
 - more advanced conflict detection (actual diffs between tasks, not just declared overlaps)
 - PR integration (GitHub/GitLab)
@@ -850,19 +856,23 @@ burl/
   src/
     main.rs
     cli/
-    core/
-      task.rs
-      config.rs
-      workflow.rs
-      lock.rs
-      fs_atomic.rs
-      git.rs
-    validation/
+    commands/
+    config.rs
+    context.rs
+    diff.rs
+    error.rs
+    events.rs
+    exit_codes.rs
+    fs/
+    git.rs
+    git_worktree.rs
+    locks.rs
+    task.rs
+    task_git.rs
+    validate/
       scope.rs
-      stubs_diff.rs
-      build.rs
-    util/
-      log.rs
+      stubs.rs
+    workflow.rs
 ```
 
 ---

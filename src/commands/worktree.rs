@@ -15,17 +15,8 @@ use crate::workflow::{BUCKETS, TaskIndex, validate_task_id};
 pub fn cmd_worktree(args: WorktreeArgs) -> Result<()> {
     let ctx = require_initialized_workflow()?;
 
-    // Task ID is required for this command
-    let task_id_str = args.task_id.ok_or_else(|| {
-        BurlError::UserError(
-            "task ID is required.\n\n\
-             Usage: burl worktree TASK-001"
-                .to_string(),
-        )
-    })?;
-
     // Validate and normalize task ID
-    let task_id = validate_task_id(&task_id_str)?;
+    let task_id = validate_task_id(&args.task_id)?;
 
     // Build task index and find the task
     let index = TaskIndex::build(&ctx)?;
@@ -71,21 +62,6 @@ mod tests {
 
     #[test]
     #[serial]
-    fn test_worktree_requires_task_id() {
-        let temp_dir = create_test_repo();
-        let _guard = DirGuard::new(temp_dir.path());
-
-        cmd_init().unwrap();
-
-        let args = WorktreeArgs { task_id: None };
-        let result = cmd_worktree(args);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("task ID is required"));
-    }
-
-    #[test]
-    #[serial]
     fn test_worktree_task_not_found() {
         let temp_dir = create_test_repo();
         let _guard = DirGuard::new(temp_dir.path());
@@ -93,7 +69,7 @@ mod tests {
         cmd_init().unwrap();
 
         let args = WorktreeArgs {
-            task_id: Some("TASK-999".to_string()),
+            task_id: "TASK-999".to_string(),
         };
         let result = cmd_worktree(args);
         assert!(result.is_err());
@@ -121,7 +97,7 @@ mod tests {
         cmd_add(add_args).unwrap();
 
         let args = WorktreeArgs {
-            task_id: Some("TASK-001".to_string()),
+            task_id: "TASK-001".to_string(),
         };
         let result = cmd_worktree(args);
         assert!(result.is_err());
@@ -138,7 +114,7 @@ mod tests {
         cmd_init().unwrap();
 
         let args = WorktreeArgs {
-            task_id: Some("../TASK-001".to_string()),
+            task_id: "../TASK-001".to_string(),
         };
         let result = cmd_worktree(args);
         assert!(result.is_err());

@@ -27,6 +27,7 @@ burl add "Implement player jump" --priority high --affects-globs "src/player/**"
 
 # claim work (moves READY -> DOING and creates a task worktree)
 burl claim TASK-001
+# (cd into the printed worktree path to do the work)
 
 # in the task worktree: make commits, then submit for QA
 burl submit TASK-001
@@ -37,10 +38,10 @@ burl validate TASK-001
 # accept/reject
 burl approve TASK-001
 # or
-burl reject TASK-001 --reason "Scope exceeded; touched src/net/**"
+burl reject TASK-001 --reason "Scope exceeded; touched src/net/**" # may move to BLOCKED if max attempts reached
 ```
 
-## Live dashboard + automation (V2)
+## Live dashboard + automation
 
 ```bash
 # lightweight TUI-style dashboard (alias: `visualizer`)

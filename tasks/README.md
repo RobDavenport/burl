@@ -36,14 +36,14 @@ These task specs break `burl.md` into **bite-sized, sequential, implementable** 
 
 - `main.rs`: CLI parsing + top-level exit-code mapping only (no business logic).
 - `context.rs`: resolves repo root + canonical workflow paths + actor id + loads config.
-- `errors.rs`: a small error type that carries `{ exit_code, message, details }` (avoid panics).
+- `error.rs`: a small error type that carries `{ exit_code, message, details }` (avoid panics).
 - `fs/atomic.rs`: `atomic_write` + `atomic_rename` helpers used everywhere.
 - `locks.rs`: lock acquire/list/clear (RAII guards).
 - `task.rs`: task frontmatter parse/serialize + “QA Report” append helper.
 - `workflow.rs`: bucket enumeration + atomic move helpers (folder = truth).
 - `git.rs`: git runner + worktree/branch operations (all `git` calls funneled here).
 - `diff.rs`: diff parsing utilities (changed files + added lines with line numbers).
-- `validate/`: `scope.rs`, `stubs.rs`, `build.rs` producing structured results.
+- `validate/`: `scope.rs`, `stubs.rs` producing structured results.
 - `commands/`: one module per CLI command, each taking `&Context` and returning `Result<(), BurlError>`.
 
 Design notes:
