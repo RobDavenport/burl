@@ -8,6 +8,7 @@ mod cli;
 mod commands;
 pub mod config;
 pub mod context;
+pub mod diff;
 pub mod error;
 pub mod events;
 pub mod exit_codes;
