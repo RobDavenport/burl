@@ -13,6 +13,7 @@ pub mod events;
 pub mod exit_codes;
 pub mod fs;
 pub mod git;
+pub mod git_worktree;
 pub mod locks;
 pub mod task;
 pub mod workflow;
