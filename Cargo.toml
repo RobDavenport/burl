@@ -16,6 +16,7 @@ chrono = { version = "0.4", features = ["serde"] }
 hostname = "0.4"
 regex = "1"
 globset = "0.4"
+shell-words = "1"
 
 [dev-dependencies]
 tempfile = "3"

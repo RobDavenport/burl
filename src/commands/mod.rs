@@ -9,6 +9,7 @@ pub mod init;
 mod show;
 mod status;
 pub mod submit;
+pub mod validate_cmd;
 mod worktree;
 
 use crate::cli::{
@@ -66,8 +67,8 @@ fn cmd_submit(args: SubmitArgs) -> Result<()> {
     submit::cmd_submit(args)
 }
 
-fn cmd_validate(_args: ValidateArgs) -> Result<()> {
-    Err(BurlError::NotImplemented("burl validate".to_string()))
+fn cmd_validate(args: ValidateArgs) -> Result<()> {
+    validate_cmd::cmd_validate(args)
 }
 
 fn cmd_approve(_args: ApproveArgs) -> Result<()> {
@@ -206,16 +207,7 @@ mod tests {
 
     // Note: claim is now fully implemented with tests in claims.rs
     // Note: submit is now fully implemented with tests in submit.rs
-
-    #[test]
-    fn validate_returns_not_implemented() {
-        let args = ValidateArgs {
-            task_id: "TASK-001".to_string(),
-        };
-        let result = cmd_validate(args);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
+    // Note: validate is now fully implemented with tests in validate_cmd.rs
 
     #[test]
     fn approve_returns_not_implemented() {
