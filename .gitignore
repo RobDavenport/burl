@@ -1,0 +1,13 @@
+# Rust
+target/
+
+# FDX runtime/worktree dirs (created by `fdx init`, etc.)
+.fdx/
+.worktrees/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
