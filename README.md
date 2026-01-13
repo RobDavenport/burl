@@ -40,6 +40,19 @@ burl approve TASK-001
 burl reject TASK-001 --reason "Scope exceeded; touched src/net/**"
 ```
 
+## Live dashboard + automation (V2)
+
+```bash
+# lightweight TUI-style dashboard (alias: `visualizer`)
+burl monitor
+
+# automation loop: claim READY tasks up to max_parallel, validate QA tasks
+burl watch
+
+# also auto-approve QA tasks (runs validations via approve)
+burl watch --approve
+```
+
 ## Files and folders
 
 Default layout:

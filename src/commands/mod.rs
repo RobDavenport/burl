@@ -9,16 +9,18 @@ pub mod claim;
 pub mod clean;
 pub mod doctor;
 pub mod init;
+pub mod monitor;
 pub mod reject;
 mod show;
 mod status;
 pub mod submit;
 pub mod validate_cmd;
+pub mod watch;
 mod worktree;
 
 use crate::cli::{
     ApproveArgs, ClaimArgs, CleanArgs, Command, DoctorArgs, LockAction, LockClearArgs, LockCommand,
-    RejectArgs, SubmitArgs, ValidateArgs,
+    MonitorArgs, RejectArgs, SubmitArgs, ValidateArgs, WatchArgs,
 };
 use crate::config::Config;
 use crate::context::require_initialized_workflow;
@@ -46,6 +48,8 @@ pub fn dispatch(command: Command) -> Result<()> {
         Command::Lock(lock_cmd) => dispatch_lock(lock_cmd),
         Command::Doctor(args) => cmd_doctor(args),
         Command::Clean(args) => cmd_clean(args),
+        Command::Watch(args) => cmd_watch(args),
+        Command::Monitor(args) => cmd_monitor(args),
     }
 }
 
@@ -207,6 +211,14 @@ fn cmd_doctor(args: DoctorArgs) -> Result<()> {
 
 fn cmd_clean(args: CleanArgs) -> Result<()> {
     clean::cmd_clean(args)
+}
+
+fn cmd_watch(args: WatchArgs) -> Result<()> {
+    watch::cmd_watch(args)
+}
+
+fn cmd_monitor(args: MonitorArgs) -> Result<()> {
+    monitor::cmd_monitor(args)
 }
 
 #[cfg(test)]

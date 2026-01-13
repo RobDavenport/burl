@@ -4,7 +4,7 @@
 //! This module defines the command structure; actual implementations
 //! are in the `commands` module.
 
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 
 /// Burl: Minimal file-based workflow orchestrator for agentic coding pipelines.
 ///
@@ -94,6 +94,22 @@ pub enum Command {
     ///
     /// Removes worktrees for completed tasks and cleans orphan artifacts.
     Clean(CleanArgs),
+
+    /// Automation loop for claiming and QA processing.
+    ///
+    /// By default, `watch` will:
+    /// - keep claiming tasks until `max_parallel` is reached
+    /// - validate tasks currently in QA (once per new commit SHA)
+    ///
+    /// Use `--approve` to also auto-approve passing QA tasks.
+    Watch(WatchArgs),
+
+    /// Live dashboard / visualizer for workflow status.
+    ///
+    /// This is a lightweight TUI-style view that refreshes periodically.
+    /// (Alias: `visualizer`)
+    #[command(alias = "visualizer", alias = "viz", alias = "dashboard")]
+    Monitor(MonitorArgs),
 }
 
 /// Arguments for the `add` command.
@@ -238,6 +254,54 @@ pub struct CleanArgs {
     /// Skip confirmation prompts.
     #[arg(long)]
     pub yes: bool,
+}
+
+/// Arguments for the `watch` command.
+#[derive(Parser, Debug)]
+pub struct WatchArgs {
+    /// Poll interval in milliseconds.
+    #[arg(long, default_value_t = 2000)]
+    pub interval_ms: u64,
+
+    /// Whether to auto-claim READY tasks up to config `max_parallel`.
+    #[arg(long, default_value_t = true, action = ArgAction::Set)]
+    pub claim: bool,
+
+    /// Whether to process QA tasks (validate/approve).
+    #[arg(long, default_value_t = true, action = ArgAction::Set)]
+    pub qa: bool,
+
+    /// When set, attempt to approve QA tasks (runs validations via `approve`).
+    #[arg(long)]
+    pub approve: bool,
+
+    /// Run a single iteration and exit.
+    #[arg(long)]
+    pub once: bool,
+}
+
+/// Arguments for the `monitor` (visualizer) command.
+#[derive(Parser, Debug)]
+pub struct MonitorArgs {
+    /// Refresh interval in milliseconds.
+    #[arg(long, default_value_t = 1000)]
+    pub interval_ms: u64,
+
+    /// Run once and exit (no refresh loop).
+    #[arg(long)]
+    pub once: bool,
+
+    /// Clear the screen between refreshes.
+    #[arg(long, default_value_t = true, action = ArgAction::Set)]
+    pub clear: bool,
+
+    /// Limit number of tasks shown per bucket section.
+    #[arg(long, default_value_t = 20)]
+    pub limit: usize,
+
+    /// Show the last N events from the audit log (0 disables).
+    #[arg(long, default_value_t = 10)]
+    pub tail: usize,
 }
 
 impl Cli {
@@ -449,5 +513,60 @@ mod tests {
         } else {
             panic!("Expected Clean command");
         }
+    }
+
+    #[test]
+    fn parse_watch_defaults() {
+        let cli = Cli::try_parse_from(["burl", "watch"]).unwrap();
+        if let Command::Watch(args) = cli.command {
+            assert_eq!(args.interval_ms, 2000);
+            assert!(args.claim);
+            assert!(args.qa);
+            assert!(!args.approve);
+            assert!(!args.once);
+        } else {
+            panic!("Expected Watch command");
+        }
+    }
+
+    #[test]
+    fn parse_watch_disable_claim() {
+        let cli = Cli::try_parse_from(["burl", "watch", "--claim=false"]).unwrap();
+        if let Command::Watch(args) = cli.command {
+            assert!(!args.claim);
+        } else {
+            panic!("Expected Watch command");
+        }
+    }
+
+    #[test]
+    fn parse_watch_approve_once() {
+        let cli = Cli::try_parse_from(["burl", "watch", "--approve", "--once"]).unwrap();
+        if let Command::Watch(args) = cli.command {
+            assert!(args.approve);
+            assert!(args.once);
+        } else {
+            panic!("Expected Watch command");
+        }
+    }
+
+    #[test]
+    fn parse_monitor_defaults() {
+        let cli = Cli::try_parse_from(["burl", "monitor"]).unwrap();
+        if let Command::Monitor(args) = cli.command {
+            assert_eq!(args.interval_ms, 1000);
+            assert!(args.clear);
+            assert_eq!(args.limit, 20);
+            assert_eq!(args.tail, 10);
+            assert!(!args.once);
+        } else {
+            panic!("Expected Monitor command");
+        }
+    }
+
+    #[test]
+    fn parse_visualizer_alias() {
+        let cli = Cli::try_parse_from(["burl", "visualizer", "--once"]).unwrap();
+        assert!(matches!(cli.command, Command::Monitor(_)));
     }
 }

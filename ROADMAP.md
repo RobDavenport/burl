@@ -16,11 +16,11 @@ This document tracks what `burl` supports today and where it’s heading next.
 - **QA flow**: `burl submit` → `burl validate` → `burl approve` (rebase + `--ff-only`) / `burl reject`
 - **Audit log**: append-only NDJSON events under `.burl/.workflow/events/`
 - **Maintenance tools**: `burl doctor` (diagnostics/repairs) and `burl clean` (worktree cleanup)
+- **Automation loop**: `burl watch` to auto-claim and process QA
+- **TUI / dashboard**: `burl monitor` (alias: `visualizer`)
 
 ## Future features (V2+)
 
-- **Automation loop**: `burl watch` to auto-claim, run validations, and advance tasks
-- **TUI / dashboard**: `burl monitor` (live status, lock ages, QA backlog)
 - **Agent execution config**: formalize `agents.yaml` (still deterministic gating; no “self-judging”)
 - **Richer validation pipeline**: multi-step validation profiles, per-language hooks, output summarization
 - **Smarter conflict detection**: detect overlap via actual diffs/paths, not only declared scopes
