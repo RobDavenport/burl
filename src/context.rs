@@ -212,6 +212,11 @@ impl WorkflowContext {
         self.workflow_state_dir.join("events")
     }
 
+    /// Get the path to the main events log file.
+    pub fn events_file(&self) -> PathBuf {
+        self.events_dir().join("events.ndjson")
+    }
+
     /// Get the path to a task lock file.
     pub fn task_lock_path(&self, task_id: &str) -> PathBuf {
         self.locks_dir.join(format!("{}.lock", task_id))
@@ -416,6 +421,16 @@ mod tests {
 
         let events_dir = ctx.events_dir();
         assert!(events_dir.ends_with("events"));
+    }
+
+    #[test]
+    fn test_events_file() {
+        let temp_dir = create_test_repo();
+        let ctx = WorkflowContext::resolve_from(temp_dir.path()).unwrap();
+
+        let events_file = ctx.events_file();
+        assert!(events_file.ends_with("events.ndjson"));
+        assert!(events_file.to_string_lossy().contains("events"));
     }
 
     #[test]

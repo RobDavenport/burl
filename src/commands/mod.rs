@@ -13,7 +13,9 @@ use crate::cli::{
 use crate::config::Config;
 use crate::context::require_initialized_workflow;
 use crate::error::{BurlError, Result};
+use crate::events::{append_event, Event, EventAction};
 use crate::locks;
+use serde_json::json;
 
 /// Dispatch a command to its implementation.
 ///
@@ -154,6 +156,30 @@ fn cmd_lock_clear(args: LockClearArgs) -> Result<()> {
     let config = Config::load(ctx.config_path()).unwrap_or_default();
 
     let cleared = locks::clear_lock(&ctx, &args.lock_id, &config)?;
+
+    // Append lock_clear event
+    // For workflow.lock, logging is best-effort since we just cleared it and can now acquire it.
+    // For other locks, we should be able to log normally.
+    let event = Event::new(EventAction::LockClear).with_details(json!({
+        "lock_id": cleared.name,
+        "lock_type": match cleared.lock_type {
+            locks::LockType::Workflow => "workflow",
+            locks::LockType::Task => "task",
+            locks::LockType::Claim => "claim",
+        },
+        "age_minutes": cleared.metadata.age().num_minutes(),
+        "was_stale": cleared.is_stale,
+        "force": args.force,
+        "owner": cleared.metadata.owner,
+        "original_action": cleared.metadata.action
+    }));
+
+    // Best-effort logging: if it fails, print a warning but don't fail the command
+    // This is especially important when clearing workflow.lock since we need the lock
+    // to be cleared before we can acquire it for logging, but we just cleared it.
+    if let Err(e) = append_event(&ctx, &event) {
+        eprintln!("Warning: failed to log lock_clear event: {}", e);
+    }
 
     println!("Cleared lock: {}", cleared.name);
     println!();

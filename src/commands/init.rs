@@ -17,9 +17,11 @@
 use crate::config::Config;
 use crate::context::{resolve_context, WorkflowContext, DEFAULT_WORKFLOW_BRANCH};
 use crate::error::{BurlError, Result};
+use crate::events::{append_event, Event, EventAction};
 use crate::fs::atomic_write_file;
 use crate::git::run_git;
 use crate::locks;
+use serde_json::json;
 use std::fs;
 use std::path::Path;
 
@@ -54,6 +56,15 @@ pub fn cmd_init() -> Result<()> {
 
     // Load config to check if auto-commit is enabled
     let config = Config::load(ctx.config_path()).unwrap_or_default();
+
+    // Append init event before committing (while holding workflow.lock)
+    let event = Event::new(EventAction::Init).with_details(json!({
+        "workflow_branch": DEFAULT_WORKFLOW_BRANCH,
+        "workflow_worktree": ctx.workflow_worktree.display().to_string(),
+        "auto_commit": config.workflow_auto_commit,
+        "auto_push": config.workflow_auto_push
+    }));
+    append_event(&ctx, &event)?;
 
     // Commit the workflow structure if auto-commit is enabled
     if config.workflow_auto_commit {

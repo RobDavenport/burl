@@ -9,6 +9,7 @@ mod commands;
 pub mod config;
 pub mod context;
 pub mod error;
+pub mod events;
 pub mod exit_codes;
 pub mod fs;
 pub mod git;
