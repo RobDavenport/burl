@@ -12,6 +12,7 @@ pub mod error;
 pub mod exit_codes;
 pub mod fs;
 pub mod git;
+pub mod locks;
 pub mod task;
 
 use cli::Cli;

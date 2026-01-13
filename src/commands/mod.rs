@@ -8,7 +8,10 @@ use crate::cli::{
     AddArgs, ApproveArgs, ClaimArgs, CleanArgs, Command, DoctorArgs, LockAction, LockClearArgs,
     LockCommand, RejectArgs, ShowArgs, SubmitArgs, ValidateArgs, WorktreeArgs,
 };
+use crate::config::Config;
+use crate::context::require_initialized_workflow;
 use crate::error::{BurlError, Result};
+use crate::locks;
 
 /// Dispatch a command to its implementation.
 ///
@@ -87,11 +90,88 @@ fn cmd_worktree(_args: WorktreeArgs) -> Result<()> {
 }
 
 fn cmd_lock_list() -> Result<()> {
-    Err(BurlError::NotImplemented("burl lock list".to_string()))
+    let ctx = require_initialized_workflow()?;
+    let config = Config::load(ctx.config_path()).unwrap_or_default();
+
+    let locks = locks::list_locks(&ctx, &config)?;
+
+    if locks.is_empty() {
+        println!("No active locks.");
+        return Ok(());
+    }
+
+    println!("Active locks ({}):", locks.len());
+    println!();
+
+    for lock in &locks {
+        println!(
+            "  {} ({}):",
+            lock.name,
+            match lock.lock_type {
+                locks::LockType::Workflow => "workflow",
+                locks::LockType::Task => "task",
+                locks::LockType::Claim => "claim",
+            }
+        );
+        println!("    Owner:      {}", lock.metadata.owner);
+        if let Some(pid) = lock.metadata.pid {
+            println!("    PID:        {}", pid);
+        }
+        println!("    Created:    {}", lock.metadata.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
+        println!("    Age:        {}", lock.metadata.age_string());
+        println!("    Action:     {}", lock.metadata.action);
+        if lock.is_stale {
+            println!("    Status:     STALE (exceeds {} min threshold)", config.lock_stale_minutes);
+        }
+        println!("    Path:       {}", lock.path.display());
+        println!();
+    }
+
+    // Summary
+    let stale_count = locks.iter().filter(|l| l.is_stale).count();
+    if stale_count > 0 {
+        println!(
+            "Note: {} lock(s) are stale. Use `burl lock clear <lock-id> --force` to clear.",
+            stale_count
+        );
+    }
+
+    Ok(())
 }
 
-fn cmd_lock_clear(_args: LockClearArgs) -> Result<()> {
-    Err(BurlError::NotImplemented("burl lock clear".to_string()))
+fn cmd_lock_clear(args: LockClearArgs) -> Result<()> {
+    // Require --force flag
+    if !args.force {
+        return Err(BurlError::UserError(
+            "refusing to clear lock without --force flag.\n\n\
+             Clearing locks can cause data corruption if the lock holder is still active.\n\
+             Only clear locks if you are certain the lock holder has crashed.\n\n\
+             To clear the lock, run:\n  burl lock clear {} --force"
+                .replace("{}", &args.lock_id),
+        ));
+    }
+
+    let ctx = require_initialized_workflow()?;
+    let config = Config::load(ctx.config_path()).unwrap_or_default();
+
+    let cleared = locks::clear_lock(&ctx, &args.lock_id, &config)?;
+
+    println!("Cleared lock: {}", cleared.name);
+    println!();
+    println!("Lock details:");
+    println!("  Owner:      {}", cleared.metadata.owner);
+    if let Some(pid) = cleared.metadata.pid {
+        println!("  PID:        {}", pid);
+    }
+    println!("  Created:    {}", cleared.metadata.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
+    println!("  Age:        {}", cleared.metadata.age_string());
+    println!("  Action:     {}", cleared.metadata.action);
+    if cleared.is_stale {
+        println!("  Status:     was STALE");
+    }
+    println!("  Path:       {}", cleared.path.display());
+
+    Ok(())
 }
 
 fn cmd_doctor(_args: DoctorArgs) -> Result<()> {
@@ -205,20 +285,37 @@ mod tests {
     }
 
     #[test]
-    fn lock_list_returns_not_implemented() {
+    fn lock_list_fails_without_initialized_workflow() {
+        // lock_list now requires an initialized workflow
+        // When run outside a git repo or without workflow, it should fail with UserError
         let result = cmd_lock_list();
         assert!(result.is_err());
+        // Either "not inside a git repository" or "not initialized"
         assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
     }
 
     #[test]
-    fn lock_clear_returns_not_implemented() {
+    fn lock_clear_refuses_without_force() {
+        let args = LockClearArgs {
+            lock_id: "TASK-001".to_string(),
+            force: false,
+        };
+        let result = cmd_lock_clear(args);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.exit_code(), exit_codes::USER_ERROR);
+        assert!(err.to_string().contains("--force"));
+    }
+
+    #[test]
+    fn lock_clear_fails_without_initialized_workflow() {
         let args = LockClearArgs {
             lock_id: "TASK-001".to_string(),
             force: true,
         };
         let result = cmd_lock_clear(args);
         assert!(result.is_err());
+        // Either "not inside a git repository" or "not initialized"
         assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
     }
 
