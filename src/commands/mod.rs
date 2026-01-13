@@ -7,6 +7,7 @@ pub mod add;
 pub mod approve;
 pub mod claim;
 pub mod init;
+pub mod reject;
 mod show;
 mod status;
 pub mod submit;
@@ -76,8 +77,8 @@ fn cmd_approve(args: ApproveArgs) -> Result<()> {
     approve::cmd_approve(args)
 }
 
-fn cmd_reject(_args: RejectArgs) -> Result<()> {
-    Err(BurlError::NotImplemented("burl reject".to_string()))
+fn cmd_reject(args: RejectArgs) -> Result<()> {
+    reject::cmd_reject(args)
 }
 
 fn cmd_lock_list() -> Result<()> {
@@ -206,21 +207,11 @@ mod tests {
     // Integration tests for these commands are in their respective modules.
     // Tests that require a git repo are tested in their individual modules.
 
-    // Note: claim is now fully implemented with tests in claims.rs
+    // Note: claim is now fully implemented with tests in claim.rs
     // Note: submit is now fully implemented with tests in submit.rs
     // Note: validate is now fully implemented with tests in validate_cmd.rs
     // Note: approve is now fully implemented with tests in approve.rs
-
-    #[test]
-    fn reject_returns_not_implemented() {
-        let args = RejectArgs {
-            task_id: "TASK-001".to_string(),
-            reason: "Test reason".to_string(),
-        };
-        let result = cmd_reject(args);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
+    // Note: reject is now fully implemented with tests in reject.rs
 
     // Note: lock_list_fails_without_initialized_workflow test was removed
     // because it relied on the current directory not having a workflow,
