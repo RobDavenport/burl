@@ -3,11 +3,12 @@
 //! This module provides the dispatcher that routes CLI commands to their
 //! implementations.
 
-mod add;
+pub mod add;
 pub mod claim;
-mod init;
+pub mod init;
 mod show;
 mod status;
+pub mod submit;
 mod worktree;
 
 use crate::cli::{
@@ -61,8 +62,8 @@ fn cmd_claim(args: ClaimArgs) -> Result<()> {
     claim::cmd_claim(args)
 }
 
-fn cmd_submit(_args: SubmitArgs) -> Result<()> {
-    Err(BurlError::NotImplemented("burl submit".to_string()))
+fn cmd_submit(args: SubmitArgs) -> Result<()> {
+    submit::cmd_submit(args)
 }
 
 fn cmd_validate(_args: ValidateArgs) -> Result<()> {
@@ -204,15 +205,7 @@ mod tests {
     // Tests that require a git repo are tested in their individual modules.
 
     // Note: claim is now fully implemented with tests in claims.rs
-    // This test is replaced by integration tests in the claim module.
-
-    #[test]
-    fn submit_returns_not_implemented() {
-        let args = SubmitArgs { task_id: None };
-        let result = cmd_submit(args);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
+    // Note: submit is now fully implemented with tests in submit.rs
 
     #[test]
     fn validate_returns_not_implemented() {
