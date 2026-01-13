@@ -11,7 +11,7 @@ Implement deterministic scope validation as defined in the PRD:
 - require all changed files to be within declared allowed scope
 
 ## Context
-Source of truth: `fdx.md` section “Deterministic Validation → Scope enforcement”.
+Source of truth: `burl.md` section “Deterministic Validation → Scope enforcement”.
 
 ## Requirements
 ### Inputs

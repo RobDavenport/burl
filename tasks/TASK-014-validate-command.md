@@ -1,16 +1,16 @@
 ---
 id: TASK-014
-title: Implement `fdx validate` (QA) including build/test hook + QA report writing
+title: Implement `burl validate` (QA) including build/test hook + QA report writing
 priority: high
 depends_on: [TASK-003, TASK-006, TASK-011, TASK-012, TASK-013]
 ---
 
 ## Objective
-Implement `fdx validate TASK-ID` to run deterministic checks and record results without changing the bucket.
+Implement `burl validate TASK-ID` to run deterministic checks and record results without changing the bucket.
 
 ## Context
-Source of truth: `fdx.md` sections:
-- “fdx validate”
+Source of truth: `burl.md` sections:
+- “burl validate”
 - “Build/Test validation”
 - “Logging & Observability”
 
@@ -54,7 +54,7 @@ Run, in order:
 - Lock failures: `4`
 
 ## Acceptance Criteria
-- [ ] `fdx validate` does not move the task out of QA.
+- [ ] `burl validate` does not move the task out of QA.
 - [ ] Failures produce exit `2` and write a QA report entry.
 - [ ] A passing validation produces exit `0` and writes a QA report entry.
 

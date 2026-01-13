@@ -1,15 +1,15 @@
 ---
 id: TASK-016
-title: Implement `fdx reject` (QA → READY/BLOCKED) + attempt policy
+title: Implement `burl reject` (QA → READY/BLOCKED) + attempt policy
 priority: high
 depends_on: [TASK-003, TASK-006, TASK-007, TASK-014]
 ---
 
 ## Objective
-Implement `fdx reject TASK-ID --reason "..."` to return a QA task to READY with explicit reasons and attempt tracking.
+Implement `burl reject TASK-ID --reason "..."` to return a QA task to READY with explicit reasons and attempt tracking.
 
 ## Context
-Source of truth: `fdx.md` section “fdx reject” and `qa_max_attempts` policy.
+Source of truth: `burl.md` section “burl reject” and `qa_max_attempts` policy.
 
 ## Requirements
 - Preconditions:

@@ -1,7 +1,9 @@
 # Rust
 target/
 
-# FDX runtime/worktree dirs (created by `fdx init`, etc.)
+# Burl runtime/worktree dirs (created by `burl init`, etc.)
+.burl/
+# Legacy (was fdx)
 .fdx/
 .worktrees/
 
@@ -10,4 +12,3 @@ target/
 Thumbs.db
 *.swp
 *.swo
-

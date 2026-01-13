@@ -12,7 +12,7 @@ Implement the task file read/write layer:
 3) write updates atomically (cross-platform)
 
 ## Context
-Source of truth: `fdx.md` section “Task file format” and “Atomic filesystem operations”.
+Source of truth: `burl.md` section “Task file format” and “Atomic filesystem operations”.
 
 ## Requirements
 ### Task parsing/serialization

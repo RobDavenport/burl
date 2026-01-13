@@ -1,16 +1,16 @@
 ---
 id: TASK-013
-title: Implement `fdx submit` (DOING → QA) with scope+stub gates
+title: Implement `burl submit` (DOING → QA) with scope+stub gates
 priority: high
 depends_on: [TASK-006, TASK-009, TASK-011, TASK-012]
 ---
 
 ## Objective
-Implement `fdx submit [TASK-ID]` to transition a claimed task from DOING → QA after passing deterministic gates.
+Implement `burl submit [TASK-ID]` to transition a claimed task from DOING → QA after passing deterministic gates.
 
 ## Context
-Source of truth: `fdx.md` sections:
-- “fdx submit”
+Source of truth: `burl.md` sections:
+- “burl submit”
 - “Deterministic Validation”
 - “Return codes”
 
@@ -22,7 +22,7 @@ Source of truth: `fdx.md` sections:
   - a non-null `base_sha`
 - Verify git state in the task worktree:
   - current branch matches the recorded `branch`
-  - if mismatch/missing: exit `1` with remediation (“run `fdx doctor` or re-claim the task”)
+  - if mismatch/missing: exit `1` with remediation (“run `burl doctor` or re-claim the task”)
 - Must require at least one commit on the task branch since `base_sha`.
   - If no commits: user error exit `1` with actionable fix (“commit your changes first”).
 - Run validations against `{base_sha}..HEAD`:
@@ -53,7 +53,7 @@ Source of truth: `fdx.md` sections:
 ## Test Plan
 ### Integration
 - init → add → claim → modify file → commit → submit
-- verify task file path is now under `.fdx/.workflow/QA/`
+- verify task file path is now under `.burl/.workflow/QA/`
 
 ## Validation
 - `cargo test`

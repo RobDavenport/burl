@@ -1,12 +1,12 @@
-# FDX V1 — Build Task Breakdown
+# Burl V1 — Build Task Breakdown
 
-These task specs break `fdx.md` into **bite-sized, sequential, implementable** units you can hand to agents. Each task includes acceptance criteria plus testing/validation expectations.
+These task specs break `burl.md` into **bite-sized, sequential, implementable** units you can hand to agents. Each task includes acceptance criteria plus testing/validation expectations.
 
 **Workflow:** complete tasks in order; do not start a task until its dependencies are DONE and tests are green.
 
 ## Task Order (V1)
 
-1. `tasks/TASK-001-fdx-cli-scaffold.md`
+1. `tasks/TASK-001-burl-cli-scaffold.md`
 2. `tasks/TASK-002-repo-discovery-git-config.md`
 3. `tasks/TASK-003-task-model-frontmatter-atomic-fs.md`
 4. `tasks/TASK-004-locking-subsystem.md`
@@ -27,7 +27,7 @@ These task specs break `fdx.md` into **bite-sized, sequential, implementable** u
 
 ## Conventions
 
-- **Exit codes:** follow `fdx.md` section “Return codes” (0/1/2/3/4).
+- **Exit codes:** follow `burl.md` section “Return codes” (0/1/2/3/4).
 - **Determinism:** validation gates must be **diff-based** using the stored `base_sha` (and the rebased base on approve).
 - **No LLM self-judging:** validations must be purely mechanical/deterministic (diff + config + command exit codes).
 - **Cross-platform:** Windows/macOS/Linux support is required for filesystem atomics and subprocess execution.
@@ -44,7 +44,7 @@ These task specs break `fdx.md` into **bite-sized, sequential, implementable** u
 - `git.rs`: git runner + worktree/branch operations (all `git` calls funneled here).
 - `diff.rs`: diff parsing utilities (changed files + added lines with line numbers).
 - `validate/`: `scope.rs`, `stubs.rs`, `build.rs` producing structured results.
-- `commands/`: one module per CLI command, each taking `&Context` and returning `Result<(), FdxError>`.
+- `commands/`: one module per CLI command, each taking `&Context` and returning `Result<(), BurlError>`.
 
 Design notes:
 - Centralize “mutating workflow state” operations in a helper that:
@@ -55,7 +55,7 @@ Design notes:
 
 ## Configurability Principles (V1)
 
-- Treat `.fdx/` + branch `fdx` as fixed layout in V1 (avoid config bootstrap/migration complexity).
+- Treat `.burl/` + branch `burl` as fixed layout in V1 (avoid config bootstrap/migration complexity).
 - Keep config forward-compatible:
   - ignore/round-trip unknown keys
   - validate known enums and numeric ranges

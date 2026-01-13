@@ -15,7 +15,7 @@ Implement the git operations needed by `claim`, `submit`, `approve`, and cleanup
 - delete branch
 
 ## Context
-Source of truth: `fdx.md` sections “Git Worktree & Branch Model” and “Task worktree lifecycle”.
+Source of truth: `burl.md` sections “Git Worktree & Branch Model” and “Task worktree lifecycle”.
 
 ## Requirements
 - Resolve `base_sha` as `<remote>/<main_branch>` HEAD at claim-time (after fetch).

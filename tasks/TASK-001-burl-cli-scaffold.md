@@ -1,19 +1,19 @@
 ---
 id: TASK-001
-title: Create `fdx` CLI scaffold (Rust) + command skeleton
+title: Create `burl` CLI scaffold (Rust) + command skeleton
 priority: high
 depends_on: []
 ---
 
 ## Objective
-Create a minimal Rust CLI binary named `fdx` with a stable subcommand surface area matching the V1 PRD. This task is intentionally “thin”: wiring + placeholders only.
+Create a minimal Rust CLI binary named `burl` with a stable subcommand surface area matching the V1 PRD. This task is intentionally “thin”: wiring + placeholders only.
 
 ## Context
-Source of truth: `fdx.md`, section “CLI Requirements (V1)”.
+Source of truth: `burl.md`, section “CLI Requirements (V1)”.
 
 ## Requirements
 - Create a Rust binary crate (recommended: a standalone repo; if implemented in a mono-repo, keep it isolated in its own folder).
-- The `fdx` binary must provide subcommands (even if some are not yet implemented):
+- The `burl` binary must provide subcommands (even if some are not yet implemented):
   - `init`, `add`, `status`, `show`, `claim`, `submit`, `validate`, `approve`, `reject`, `worktree`
   - `lock list`, `lock clear`
   - `doctor`, `clean`
@@ -26,7 +26,7 @@ Source of truth: `fdx.md`, section “CLI Requirements (V1)”.
 - Commands that are not implemented yet must exit `1` with a clear “not implemented” message (no panics).
 
 ## Acceptance Criteria
-- [ ] `fdx --help` lists all required commands/subcommands.
+- [ ] `burl --help` lists all required commands/subcommands.
 - [ ] Running any unimplemented command prints a user-actionable message and exits `1`.
 - [ ] `cargo test` passes (even if there are 0 tests yet).
 
@@ -39,9 +39,9 @@ Source of truth: `fdx.md`, section “CLI Requirements (V1)”.
 
 ## Test Plan
 ### Manual
-- `fdx --help`
-- `fdx lock --help`
-- `fdx init --help`
+- `burl --help`
+- `burl lock --help`
+- `burl init --help`
 
 ## Validation
 - `cargo test`

@@ -1,7 +1,7 @@
-# FDX (File-Driven eXecution)
+# Burl (File-Driven eXecution)
 
-`fdx` is a minimal, file-based workflow orchestrator for agentic coding/review pipelines.
+`burl` is a minimal, file-based workflow orchestrator for agentic coding/review pipelines.
 
-- PRD/spec: `fdx.md`
+- PRD/spec: `burl.md`
 - Implementation tasks: `tasks/README.md`
 

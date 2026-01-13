@@ -9,7 +9,7 @@ depends_on: [TASK-002, TASK-003, TASK-010]
 Implement diff-based stub detection that scans **added lines only** for configured patterns.
 
 ## Context
-Source of truth: `fdx.md` section “Deterministic Validation → Stub detection (diff-based)”.
+Source of truth: `burl.md` section “Deterministic Validation → Stub detection (diff-based)”.
 
 ## Requirements
 ### Inputs
@@ -38,7 +38,7 @@ Source of truth: `fdx.md` section “Deterministic Validation → Stub detection
 ## Implementation Notes
 - Compile regexes once per run (cache in a struct).
 - Be careful to ignore diff header lines (`+++ b/file`).
-- Return errors in a structured form so `fdx submit`/`fdx validate` can print helpful output and write QA reports.
+- Return errors in a structured form so `burl submit`/`burl validate` can print helpful output and write QA reports.
 
 ## Test Plan
 ### Unit

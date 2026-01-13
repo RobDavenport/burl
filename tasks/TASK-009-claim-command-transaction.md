@@ -1,21 +1,21 @@
 ---
 id: TASK-009
-title: Implement `fdx claim` transaction (READY → DOING)
+title: Implement `burl claim` transaction (READY → DOING)
 priority: high
 depends_on: [TASK-003, TASK-004, TASK-006, TASK-007, TASK-008]
 ---
 
 ## Objective
-Implement `fdx claim [TASK-ID]` with race-safe locking and transactional behavior:
+Implement `burl claim [TASK-ID]` with race-safe locking and transactional behavior:
 - choose a claimable READY task (or claim explicit ID)
 - create branch + worktree at `base_sha`
 - write claim metadata
 - move the task file READY → DOING
 
 ## Context
-Source of truth: `fdx.md` sections:
+Source of truth: `burl.md` sections:
 - “Race-safe claiming and transitions”
-- “fdx claim (transaction)”
+- “burl claim (transaction)”
 - “Conflict policy when declared scopes overlap”
 
 ## Requirements
@@ -48,7 +48,7 @@ Source of truth: `fdx.md` sections:
 - If the task already has recorded `branch`/`worktree` values (from a prior claim/reject):
   - reuse the existing worktree if it exists and points at the recorded branch
   - do **not** silently change `base_sha` on reuse (PRD policy)
-  - if the recorded worktree/branch is missing or invalid, fail with actionable remediation (run `fdx doctor` / recreate worktree) rather than guessing
+  - if the recorded worktree/branch is missing or invalid, fail with actionable remediation (run `burl doctor` / recreate worktree) rather than guessing
 
 ### Claim transaction steps
 1. Acquire per-task lock (`TASK-001.lock`).
@@ -79,14 +79,14 @@ Source of truth: `fdx.md` sections:
 
 ## Test Plan
 ### Integration
-- `fdx init` → `fdx add` → `fdx claim TASK-001`:
+- `burl init` → `burl add` → `burl claim TASK-001`:
   - task file moved READY → DOING
   - branch/worktree created
   - `base_sha` non-null and matches `origin/main`
 
 ### Concurrency
 - Create 2 READY tasks.
-- Spawn two processes running `fdx claim` (no ID) concurrently:
+- Spawn two processes running `burl claim` (no ID) concurrently:
   - both should succeed, but claim different tasks
 - Spawn two processes both claiming the *same* task ID:
   - exactly one succeeds; other fails with lock exit code `4`

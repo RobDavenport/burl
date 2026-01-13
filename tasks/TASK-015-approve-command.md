@@ -1,16 +1,16 @@
 ---
 id: TASK-015
-title: Implement `fdx approve` (rebase + validate + ff-only merge + cleanup)
+title: Implement `burl approve` (rebase + validate + ff-only merge + cleanup)
 priority: high
 depends_on: [TASK-006, TASK-008, TASK-013, TASK-014]
 ---
 
 ## Objective
-Implement `fdx approve TASK-ID` to safely merge a validated task into main and transition QA → DONE.
+Implement `burl approve TASK-ID` to safely merge a validated task into main and transition QA → DONE.
 
 ## Context
-Source of truth: `fdx.md` sections:
-- “fdx approve”
+Source of truth: `burl.md` sections:
+- “burl approve”
 - “Deterministic Validation → Diff base selection”
 - “Task worktree lifecycle”
 
@@ -18,7 +18,7 @@ Source of truth: `fdx.md` sections:
 ### Preconditions
 - Task must be in QA.
 - Approval must only happen if validation passes.
-- V1 rule (make deterministic): `fdx approve` always runs validation internally (do not rely on parsing prior QA reports/events to determine “pass”).
+- V1 rule (make deterministic): `burl approve` always runs validation internally (do not rely on parsing prior QA reports/events to determine “pass”).
 - Task must have:
   - a recorded `worktree` path that exists locally
   - a recorded `branch` name
@@ -66,11 +66,11 @@ For `ff_only`:
 - If rebase/merge fails, approval must not partially merge changes.
 - Default behavior on these failures:
   - append failure details to QA Report
-  - run the equivalent of `fdx reject --reason "<...>"` (preserve branch/worktree)
+  - run the equivalent of `burl reject --reason "<...>"` (preserve branch/worktree)
 
 ### Cleanup failure behavior (avoid ambiguity)
 - Cleanup is best-effort:
-  - if the merge to `main` succeeded but cleanup (worktree removal / branch delete) fails, still transition QA → DONE and record cleanup failures in the event details (and/or QA Report) so `fdx clean` can address leftovers.
+  - if the merge to `main` succeeded but cleanup (worktree removal / branch delete) fails, still transition QA → DONE and record cleanup failures in the event details (and/or QA Report) so `burl clean` can address leftovers.
 
 ## Acceptance Criteria
 - [ ] Approving a clean task fast-forwards main and moves task to DONE.

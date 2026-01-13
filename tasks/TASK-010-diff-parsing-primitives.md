@@ -11,7 +11,7 @@ Implement deterministic diff parsing utilities used by `submit`, `validate`, and
 - parse `git diff -U0` hunks to extract **added lines only** with file + line numbers
 
 ## Context
-Source of truth: `fdx.md` section “Diff commands” and “Stub detection (diff-based)”.
+Source of truth: `burl.md` section “Diff commands” and “Stub detection (diff-based)”.
 
 ## Requirements
 ### Changed files

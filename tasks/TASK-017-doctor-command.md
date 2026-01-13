@@ -1,18 +1,18 @@
 ---
 id: TASK-017
-title: Implement `fdx doctor` (report inconsistencies + optional safe repair)
+title: Implement `burl doctor` (report inconsistencies + optional safe repair)
 priority: medium
 depends_on: [TASK-004, TASK-007, TASK-008, TASK-009, TASK-013, TASK-015, TASK-016]
 ---
 
 ## Objective
-Implement `fdx doctor` to detect common workflow inconsistencies and provide actionable fixes. Optionally support `fdx doctor --repair --force` for *safe*, non-destructive repairs.
+Implement `burl doctor` to detect common workflow inconsistencies and provide actionable fixes. Optionally support `burl doctor --repair --force` for *safe*, non-destructive repairs.
 
 ## Context
-Source of truth: `fdx.md` section “Recommended recovery command (V1)”.
+Source of truth: `burl.md` section “Recommended recovery command (V1)”.
 
 ## Requirements
-### `fdx doctor` (read-only)
+### `burl doctor` (read-only)
 Report:
 - stale locks (based on config)
 - orphan lock files (task lock exists but task doesn’t exist)
@@ -22,7 +22,7 @@ Report:
 - tasks that reference a branch that does not exist locally
 - bucket/metadata mismatches (e.g., READY task with `started_at`/`base_sha` set; DOING task with `submitted_at` set)
 
-### `fdx doctor --repair --force` (safe repairs only)
+### `burl doctor --repair --force` (safe repairs only)
 Allowed repairs:
 - clear stale locks (only those confidently stale)
 - recreate missing directories (`locks/`, `events/`) if absent
@@ -44,18 +44,18 @@ Disallowed repairs (do not do automatically):
 - widening scope or editing user-authored acceptance criteria
 
 ## Acceptance Criteria
-- [ ] `fdx doctor` exits `0` when healthy, `1` when issues are found.
-- [ ] `fdx doctor` output lists specific paths and recommended remediation commands.
-- [ ] `fdx doctor --repair --force` clears stale locks and reports what changed.
+- [ ] `burl doctor` exits `0` when healthy, `1` when issues are found.
+- [ ] `burl doctor` output lists specific paths and recommended remediation commands.
+- [ ] `burl doctor --repair --force` clears stale locks and reports what changed.
 
 ## Implementation Notes
 - Prefer emitting a structured report (human-readable table + summary).
-- `fdx doctor` should not require any network access; avoid implicit fetches.
+- `burl doctor` should not require any network access; avoid implicit fetches.
 
 ## Test Plan
 ### Integration
 - Create a stale lock file and confirm it’s reported as stale.
-- Run `fdx doctor --repair --force` and confirm the lock is removed.
+- Run `burl doctor --repair --force` and confirm the lock is removed.
 
 ## Validation
 - `cargo test`

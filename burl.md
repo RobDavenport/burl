@@ -1,4 +1,4 @@
-# PRD — FDX: Minimal File‑Driven eXecution Orchestrator (`fdx`)
+# PRD — Burl: Minimal File‑Driven eXecution Orchestrator (`burl`)
 
 **Document status:** Draft (implementation-ready)  
 **Last updated:** 2026-01-13  
@@ -9,7 +9,7 @@
 
 ## 1. Summary
 
-`fdx` (File-Driven eXecution) is a **minimal, file-based workflow orchestrator** for agentic coding and review pipelines. The workflow is expressed entirely as files and folders inside a repo:
+`burl` (File-Driven eXecution) is a **minimal, file-based workflow orchestrator** for agentic coding and review pipelines. The workflow is expressed entirely as files and folders inside a repo:
 
 - **Folders are status buckets** (READY/DOING/QA/DONE/BLOCKED)
 - **Task files are durable state committed to Git**
@@ -42,8 +42,8 @@ We need a **simple** workflow that:
 ## 3. Goals (V1)
 
 ### G1 — File/Folder workflow is the source of truth
-- A repo clone + fetch + creating the workflow worktree (via `fdx init` or `git worktree add .fdx fdx`) is sufficient to understand pipeline state via `ls .fdx/.workflow/...` (default layout).
-- Workflow state is stored on a dedicated Git branch (default `fdx`) so it can be paused and resumed on another machine.
+- A repo clone + fetch + creating the workflow worktree (via `burl init` or `git worktree add .burl burl`) is sufficient to understand pipeline state via `ls .burl/.workflow/...` (default layout).
+- Workflow state is stored on a dedicated Git branch (default `burl`) so it can be paused and resumed on another machine.
 
 ### G2 — Race-safe claiming and transitions
 - No double-claim, no partial transition states.
@@ -85,7 +85,7 @@ We need a **simple** workflow that:
 - Needs to validate quickly and reject with actionable reasons.
 
 ### Persona C — Automation runner
-- Later wants `fdx watch` (V2) to auto-claim/validate.
+- Later wants `burl watch` (V2) to auto-claim/validate.
 
 ---
 
@@ -93,13 +93,13 @@ We need a **simple** workflow that:
 
 V1 is “done” when:
 
-1. `fdx init` creates a working structure (workflow branch + `.fdx/` worktree + `.worktrees/`)  
-2. `fdx add` creates a valid task file  
-3. `fdx claim` is **race-safe** and creates worktree + branch  
-4. `fdx submit` validates scope + stubs (diff-based) and moves to QA  
-5. `fdx validate` runs all configured checks (scope/stubs/build/tests)  
-6. `fdx approve` rebases + merges `--ff-only`, cleans up worktree/branch, moves to DONE  
-7. `fdx reject` returns task with reasons, increments attempts, preserves branch/worktree  
+1. `burl init` creates a working structure (workflow branch + `.burl/` worktree + `.worktrees/`)  
+2. `burl add` creates a valid task file  
+3. `burl claim` is **race-safe** and creates worktree + branch  
+4. `burl submit` validates scope + stubs (diff-based) and moves to QA  
+5. `burl validate` runs all configured checks (scope/stubs/build/tests)  
+6. `burl approve` rebases + merges `--ff-only`, cleans up worktree/branch, moves to DONE  
+7. `burl reject` returns task with reasons, increments attempts, preserves branch/worktree  
 8. Multiple concurrent claim attempts never double-claim a task  
 9. Failures mid-transition do not corrupt workflow state (rollback or safe leftovers)  
 10. Everything is inspectable without the tool (folders + markdown)
@@ -111,7 +111,7 @@ V1 is “done” when:
 ### 7.1 Directory structure
 
 ```
-.fdx/                       # canonical workflow worktree (Git branch: fdx)
+.burl/                       # canonical workflow worktree (Git branch: burl)
   .workflow/               # workflow state (tracked, durable)
     READY/
     DOING/
@@ -128,15 +128,15 @@ V1 is “done” when:
   task-002-<slug>/
 ```
 
-- `.fdx/` is the only location `fdx` reads/writes workflow state. Commands may be invoked from any directory/worktree; the tool resolves the repo root and then targets `.fdx/.workflow/`.
+- `.burl/` is the only location `burl` reads/writes workflow state. Commands may be invoked from any directory/worktree; the tool resolves the repo root and then targets `.burl/.workflow/`.
 - `locks/` is intentionally **not** committed (locks are machine-local and would cause “phantom” locks when moving machines).
 - `events/` is committed (audit/recovery across machines). See “Logging & Observability”.
 
 ### 7.2 “Filesystem is truth” principle
 
-- The definitive status is the **folder** containing the task file inside the canonical workflow worktree (`.fdx/.workflow/...` by default).
+- The definitive status is the **folder** containing the task file inside the canonical workflow worktree (`.burl/.workflow/...` by default).
 - Frontmatter fields mirror and support folder status, but folder wins if inconsistent.
-- `fdx doctor` (optional) can detect and repair inconsistencies.
+- `burl doctor` (optional) can detect and repair inconsistencies.
 
 ---
 
@@ -207,18 +207,18 @@ Relevant notes/links, constraints, file references.
 - `affects` is a list of explicit paths.
 - `affects_globs` allows controlled expansion (directories/globs) and supports new files.
 - Scope checks treat **allowed paths** as: `affects` ∪ `affects_globs`.
-- `worktree` is a best-effort local path. On a different machine, `fdx` may recreate a task worktree at the configured worktree root and update/override the recorded path.
+- `worktree` is a best-effort local path. On a different machine, `burl` may recreate a task worktree at the configured worktree root and update/override the recorded path.
 
 ### 8.2 Configuration files
 
-#### `.fdx/.workflow/config.yaml` (V1; default layout)
+#### `.burl/.workflow/config.yaml` (V1; default layout)
 
 ```yaml
 max_parallel: 3
 
 # Workflow state (durable, in Git)
-workflow_branch: fdx
-workflow_worktree: .fdx
+workflow_branch: burl
+workflow_worktree: .burl
 workflow_auto_commit: true        # commit workflow state changes after transitions
 workflow_auto_push: false         # enable for “always resumable elsewhere”
 
@@ -261,9 +261,9 @@ conflict_policy: fail            # fail | warn | ignore
 ```
 
 **Notes:**
-- `workflow_branch` / `workflow_worktree` are bootstrap parameters. Since this config lives on the workflow branch, changing these requires explicit init/migration behavior (V1 may treat `fdx` + `.fdx` as fixed defaults).
+- `workflow_branch` / `workflow_worktree` are bootstrap parameters. Since this config lives on the workflow branch, changing these requires explicit init/migration behavior (V1 may treat `burl` + `.burl` as fixed defaults).
 
-#### `.fdx/.workflow/agents.yaml` (V2; optional in V1; default layout)
+#### `.burl/.workflow/agents.yaml` (V2; optional in V1; default layout)
 
 May exist in V1 but execution is not required for the core tool. Keep it stable for future automation.
 
@@ -312,7 +312,7 @@ This section defines **the safety model**. Without these guarantees, the workflo
 
 **Requirement A1 — Same filesystem for atomic renames**
 - Folder transitions and atomic writes rely on `rename()` semantics.
-- The canonical workflow state directory (default: `.fdx/.workflow/`) must be on a single filesystem/volume.
+- The canonical workflow state directory (default: `.burl/.workflow/`) must be on a single filesystem/volume.
 - Task moves MUST be implemented as `fs::rename(src, dst)` (not copy+delete).
 
 **Requirement A2 — Atomic task file updates**
@@ -326,22 +326,22 @@ This section defines **the safety model**. Without these guarantees, the workflo
 
 **Goal:** prevent double-claim and partial transitions.
 
-**Lock files live in**: the canonical workflow worktree under `.workflow/locks/` (default: `.fdx/.workflow/locks/`).
+**Lock files live in**: the canonical workflow worktree under `.workflow/locks/` (default: `.burl/.workflow/locks/`).
 
 #### 10.2.0 Workflow lock (required)
-Because workflow state is committed to Git (workflow branch), `fdx` must prevent concurrent commands from:
+Because workflow state is committed to Git (workflow branch), `burl` must prevent concurrent commands from:
 - racing on workflow file moves/writes
 - racing on workflow-branch commits (Git index/HEAD mutations)
 
 To do this, any command that **mutates workflow state** MUST acquire a global workflow lock:
-- Create `.fdx/.workflow/locks/workflow.lock` (default layout) using **create_new** semantics.
+- Create `.burl/.workflow/locks/workflow.lock` (default layout) using **create_new** semantics.
 - If lock exists → operation fails with “workflow locked”.
 
-This lock is intended to be held for the **critical section** that edits `.fdx/.workflow/**` and commits the workflow branch (not for long-running builds/tests).
+This lock is intended to be held for the **critical section** that edits `.burl/.workflow/**` and commits the workflow branch (not for long-running builds/tests).
 
 #### 10.2.1 Per-task lock (required)
 - Before any transition involving a task:
-  - Create `.fdx/.workflow/locks/TASK-001.lock` (default layout) using **create_new** semantics.
+  - Create `.burl/.workflow/locks/TASK-001.lock` (default layout) using **create_new** semantics.
   - If lock exists → operation fails with “task locked”.
 - Lock file body includes metadata:
   - `owner` (string; e.g., hostname/user/agent name)
@@ -350,8 +350,8 @@ This lock is intended to be held for the **critical section** that edits `.fdx/.
   - `action` (claim/submit/approve/etc.)
 
 #### 10.2.2 Global claim lock (optional but recommended for “claim next”)
-When `fdx claim` is called without a task ID (auto-pick):
-- Acquire `.fdx/.workflow/locks/claim.lock` (default layout) to serialize selection from READY.
+When `burl claim` is called without a task ID (auto-pick):
+- Acquire `.burl/.workflow/locks/claim.lock` (default layout) to serialize selection from READY.
 - This prevents two claimers selecting the same “next task”.
 
 **Config:** `use_global_claim_lock: true`
@@ -362,9 +362,9 @@ Locks can persist if a process crashes.
 
 - A lock is considered stale if `now - created_at > lock_stale_minutes`.
 - Provide recovery command(s):
-  - `fdx lock list`
-  - `fdx lock clear TASK-001` (requires `--force`)
-  - `fdx doctor --repair` (optional; can clear stale locks)
+  - `burl lock list`
+  - `burl lock clear TASK-001` (requires `--force`)
+  - `burl doctor --repair` (optional; can clear stale locks)
 
 **Policy:** Never auto-clear locks without explicit user action.
 
@@ -383,44 +383,44 @@ Each command that mutates state is a transaction:
 
 ### 10.5 Correctness guarantees (what “safe” means)
 
-`fdx` can be made **race-safe** and **fail-safe** under clear assumptions:
+`burl` can be made **race-safe** and **fail-safe** under clear assumptions:
 
 **Assumptions**
-- The canonical workflow worktree exists (default path `.fdx/`) and all `fdx` commands resolve and operate on its `.workflow/` directory.
-- Workflow state (`.fdx/.workflow/**`) and local task worktrees (`.worktrees/**`) live on the **same filesystem/volume** (so rename/replace is atomic, and worktree paths are stable).
-- All workflow state mutations happen through `fdx` commands (no manual folder shuffling mid-operation).
+- The canonical workflow worktree exists (default path `.burl/`) and all `burl` commands resolve and operate on its `.workflow/` directory.
+- Workflow state (`.burl/.workflow/**`) and local task worktrees (`.worktrees/**`) live on the **same filesystem/volume** (so rename/replace is atomic, and worktree paths are stable).
+- All workflow state mutations happen through `burl` commands (no manual folder shuffling mid-operation).
 - Locks are implemented with **create_new** semantics and respected by all actors (agents/humans).
 
 **Guarantees (under the assumptions)**
 - **At-most-one mutator per task:** per-task lock files ensure only one process can claim/submit/validate/approve/reject a given task at a time.
-- **No split-brain workflow state:** all workflow reads/writes target the canonical workflow worktree (`.fdx/.workflow/**` by default), so multiple task worktrees never diverge on bucket state.
+- **No split-brain workflow state:** all workflow reads/writes target the canonical workflow worktree (`.burl/.workflow/**` by default), so multiple task worktrees never diverge on bucket state.
 - **No partial task-file writes:** task metadata updates use atomic replace (temp + rename), so frontmatter is never half-written.
 - **Bucket state is never duplicated:** bucket moves use atomic rename, so a task cannot exist in two buckets simultaneously.
 - **Atomic dispatch (claim) is deterministic:** either a task ends up in DOING with recorded `base_sha` + branch/worktree, or it remains in READY; double-claim is prevented.
 - **Merges are conservative:** default `rebase_ff_only` + `git merge --ff-only` prevents accidental merge commits or “best-effort” merges.
 
 **Non-guarantees (by design)**
-- Git conflicts can still happen at rebase time if two tasks touch the same code; `fdx` ensures conflicts are surfaced and block merging safely.
-- `fdx` cannot prevent a user/agent from running arbitrary `git` commands in a worktree; it can only make the **happy-path commands** safe and auditable.
-- Build/test commands can be nondeterministic (flaky tests); `fdx` reports failures but cannot “guarantee green”.
+- Git conflicts can still happen at rebase time if two tasks touch the same code; `burl` ensures conflicts are surfaced and block merging safely.
+- `burl` cannot prevent a user/agent from running arbitrary `git` commands in a worktree; it can only make the **happy-path commands** safe and auditable.
+- Build/test commands can be nondeterministic (flaky tests); `burl` reports failures but cannot “guarantee green”.
 
 ### 10.6 Failure modes and recovery (it should fail *safe*)
 
 Even with strong atomicity, processes can crash. The design goal is: **no silent corruption, and all failure states are recoverable**.
 
 Common recoverable failures:
-- **Crash while holding a lock:** leaves `.fdx/.workflow/locks/TASK-xxx.lock` (or workflow lock).
-  - Recovery: `fdx lock list` → `fdx lock clear TASK-xxx --force` (after verifying staleness).
+- **Crash while holding a lock:** leaves `.burl/.workflow/locks/TASK-xxx.lock` (or workflow lock).
+  - Recovery: `burl lock list` → `burl lock clear TASK-xxx --force` (after verifying staleness).
 - **Crash after creating branch/worktree but before bucket move:** may leave an orphan branch/worktree.
-  - Recovery: `fdx doctor` identifies orphan artifacts; `fdx clean` or targeted cleanup removes them.
+  - Recovery: `burl doctor` identifies orphan artifacts; `burl clean` or targeted cleanup removes them.
 - **Crash after metadata write but before bucket move:** task remains in the old bucket with new metadata.
-  - Recovery: `fdx doctor --repair` can reconcile folder status with metadata (policy-driven, no destructive changes without flags).
+  - Recovery: `burl doctor --repair` can reconcile folder status with metadata (policy-driven, no destructive changes without flags).
 - **Cross-filesystem rename/replace failure:** atomic rename may not work if directories are on different volumes.
-  - Recovery: treat as configuration error; move `.fdx/` / `.worktrees/` onto the same filesystem.
+  - Recovery: treat as configuration error; move `.burl/` / `.worktrees/` onto the same filesystem.
 
 Recommended recovery command (V1):
-- `fdx doctor` (read-only): report inconsistencies, stale locks, orphan worktrees/branches, missing `base_sha`, bucket/metadata mismatches.
-- `fdx doctor --repair --force`: apply **safe** repairs (e.g., clear stale locks, fix bucket placement) but never delete branches/worktrees without explicit cleanup flags.
+- `burl doctor` (read-only): report inconsistencies, stale locks, orphan worktrees/branches, missing `base_sha`, bucket/metadata mismatches.
+- `burl doctor --repair --force`: apply **safe** repairs (e.g., clear stale locks, fix bucket placement) but never delete branches/worktrees without explicit cleanup flags.
 
 
 ---
@@ -434,15 +434,15 @@ Workflow state is tracked in Git on a dedicated branch and edited from a dedicat
 - workflow state can be pushed and resumed on another machine
 
 **Defaults (configurable):**
-- Workflow branch: `fdx` (config `workflow_branch`)
-- Workflow worktree path: `.fdx/` (config `workflow_worktree`)
+- Workflow branch: `burl` (config `workflow_branch`)
+- Workflow worktree path: `.burl/` (config `workflow_worktree`)
 
 **Rules:**
-- `.fdx/.workflow/**` is the only authoritative workflow state.
-- Any command that mutates workflow state edits files under `.fdx/.workflow/**`, commits those changes to the workflow branch (config `workflow_auto_commit`), and may optionally push (config `workflow_auto_push`).
-- The workflow branch is intended to be linear/fast-forward (no manual rebases/merges); `fdx` assumes it can append commits safely.
+- `.burl/.workflow/**` is the only authoritative workflow state.
+- Any command that mutates workflow state edits files under `.burl/.workflow/**`, commits those changes to the workflow branch (config `workflow_auto_commit`), and may optionally push (config `workflow_auto_push`).
+- The workflow branch is intended to be linear/fast-forward (no manual rebases/merges); `burl` assumes it can append commits safely.
 - Task worktrees MUST NOT be treated as a source of truth for `.workflow/**` (they may not even have it).
-- `.fdx/.workflow/locks/**` is intentionally untracked/machine-local.
+- `.burl/.workflow/locks/**` is intentionally untracked/machine-local.
 - The workflow branch/worktree is for workflow state only; product code changes must happen on task branches/worktrees.
 
 ### 11.2 Task naming conventions
@@ -496,7 +496,7 @@ To wind down and resume elsewhere:
 1. Ensure each task worktree is in a known state (recommended: commit WIP; no uncommitted changes).
 2. Push task branches you want to resume elsewhere (configurable automation: `push_task_branch_on_submit`).
 3. Push the workflow branch (configurable automation: `workflow_auto_push`) so READY/DOING/QA/DONE state and QA reports are available.
-4. On the new machine: clone/fetch, run `fdx init` (idempotent) to recreate the canonical workflow worktree, then recreate any missing task worktrees from their branches as needed.
+4. On the new machine: clone/fetch, run `burl init` (idempotent) to recreate the canonical workflow worktree, then recreate any missing task worktrees from their branches as needed.
 
 ---
 
@@ -505,8 +505,8 @@ To wind down and resume elsewhere:
 ### 12.0 Diff base selection (important)
 
 Diff-based checks must be computed against the correct base:
-- For `fdx submit` and `fdx validate`: use the task’s stored `base_sha` (`{base_sha}..HEAD`).
-- For `fdx approve`: **rebase first**, then validate against the rebased base (`{remote}/{main_branch}..HEAD`, typically `origin/main..HEAD`).
+- For `burl submit` and `burl validate`: use the task’s stored `base_sha` (`{base_sha}..HEAD`).
+- For `burl approve`: **rebase first**, then validate against the rebased base (`{remote}/{main_branch}..HEAD`, typically `origin/main..HEAD`).
 
 ### 12.1 Scope enforcement
 
@@ -540,7 +540,7 @@ If `build_command` is non-empty:
 - non-zero exit code → fail
 - capture stdout/stderr summary into QA Report
 
-**V1 recommendation:** run on `fdx validate` and `fdx approve`, optional on `fdx submit`.
+**V1 recommendation:** run on `burl validate` and `burl approve`, optional on `burl submit`.
 
 ---
 
@@ -549,57 +549,57 @@ If `build_command` is non-empty:
 ### 13.1 Commands
 
 #### Setup
-- `fdx init`
-  - create or attach the canonical workflow worktree (default: `.fdx/` on branch `fdx`)
-  - create `.fdx/.workflow/` buckets, `locks/`, `events/`, default config templates
-  - ensure `.fdx/.workflow/locks/` is untracked (gitignored) and exists locally
-  - write `.fdx/.workflow/.gitignore` with `locks/` so locks never get committed
+- `burl init`
+  - create or attach the canonical workflow worktree (default: `.burl/` on branch `burl`)
+  - create `.burl/.workflow/` buckets, `locks/`, `events/`, default config templates
+  - ensure `.burl/.workflow/locks/` is untracked (gitignored) and exists locally
+  - write `.burl/.workflow/.gitignore` with `locks/` so locks never get committed
   - create `.worktrees/` directory (local, untracked)
   - commit initial workflow scaffolding to the workflow branch (if enabled)
-  - (recommended) add `.fdx/` and `.worktrees/` to `.git/info/exclude` so `git status` stays clean without touching `main`
+  - (recommended) add `.burl/` and `.worktrees/` to `.git/info/exclude` so `git status` stays clean without touching `main`
 
 #### Task management
-- `fdx add "title" [--priority] [--affects ...] [--must-not-touch ...] [--depends-on ...] [--tags ...]`
-  - creates task in `.fdx/.workflow/READY/` and commits workflow state (if enabled)
+- `burl add "title" [--priority] [--affects ...] [--must-not-touch ...] [--depends-on ...] [--tags ...]`
+  - creates task in `.burl/.workflow/READY/` and commits workflow state (if enabled)
 
-- `fdx status`
+- `burl status`
   - counts per bucket + highlights locked/stalled tasks
 
-- `fdx show TASK-001`
+- `burl show TASK-001`
   - render task markdown and key metadata
 
 #### Worker operations
-- `fdx claim [TASK-ID]`
+- `burl claim [TASK-ID]`
   - if TASK-ID omitted: select next claimable task (global claim lock optional; workflow lock required for mutations)
-  - creates/attaches task worktree + branch, writes `base_sha`, moves task READY → DOING in `.fdx/.workflow/`
+  - creates/attaches task worktree + branch, writes `base_sha`, moves task READY → DOING in `.burl/.workflow/`
   - prints worktree path
 
-- `fdx submit [TASK-ID]`
+- `burl submit [TASK-ID]`
   - runs scope+stub checks (diff-based) and requires at least one commit
-  - writes `submitted_at`, moves DOING → QA in `.fdx/.workflow/`
+  - writes `submitted_at`, moves DOING → QA in `.burl/.workflow/`
 
-- `fdx worktree [TASK-ID]`
+- `burl worktree [TASK-ID]`
   - prints recorded worktree path
 
 #### QA operations
-- `fdx validate TASK-ID`
+- `burl validate TASK-ID`
   - runs: scope + stub + build/test
-  - appends structured results to “QA Report” section and/or writes `.fdx/.workflow/events/...`
+  - appends structured results to “QA Report” section and/or writes `.burl/.workflow/events/...`
 
-- `fdx approve TASK-ID`
-  - requires `fdx validate` to pass (or runs validate internally)
+- `burl approve TASK-ID`
+  - requires `burl validate` to pass (or runs validate internally)
   - rebases + merges (strategy-based)
   - cleans up worktree, moves to DONE, sets `completed_at`
 
-- `fdx reject TASK-ID --reason "..."`
+- `burl reject TASK-ID --reason "..."`
   - increments attempts, appends reason, moves to READY
 
 #### Locks & recovery
-- `fdx lock list`
-- `fdx lock clear TASK-ID --force`
-- `fdx doctor`                         # report stale locks, mismatches, orphan artifacts
-- `fdx doctor --repair --force`        # apply safe repairs (policy-driven)
-- `fdx clean`                          # remove completed worktrees, orphan worktrees (with confirmation flags)
+- `burl lock list`
+- `burl lock clear TASK-ID --force`
+- `burl doctor`                         # report stale locks, mismatches, orphan artifacts
+- `burl doctor --repair --force`        # apply safe repairs (policy-driven)
+- `burl clean`                          # remove completed worktrees, orphan worktrees (with confirmation flags)
 
 ### 13.2 Return codes
 - `0`: success
@@ -612,12 +612,12 @@ If `build_command` is non-empty:
 
 ## 14. Transition Semantics (Detailed, Atomic)
 
-### 14.1 `fdx claim` (transaction)
+### 14.1 `burl claim` (transaction)
 
 **Locks:**
 - if TASK-ID omitted: acquire `claim.lock` (optional, config) to pick “next” from READY
 - always acquire `TASK-001.lock`
-- acquire `workflow.lock` for the critical section that mutates `.fdx/.workflow/**` and commits workflow state
+- acquire `workflow.lock` for the critical section that mutates `.burl/.workflow/**` and commits workflow state
 
 **Steps:**
 1. Verify task file exists in READY (in the workflow worktree) and parses.
@@ -638,13 +638,13 @@ If `build_command` is non-empty:
 **Rollback rules:**
 - If branch created but worktree creation fails → delete branch (if created in this transaction).
 - If metadata updated but move fails → revert metadata (or leave but report; folder still READY).
-- If move succeeds but later step fails → treat as DOING and require `fdx doctor` (should be rare; move is last).
+- If move succeeds but later step fails → treat as DOING and require `burl doctor` (should be rare; move is last).
 
-### 14.2 `fdx submit`
+### 14.2 `burl submit`
 
 **Locks:**
 - acquire `TASK.lock`
-- acquire `workflow.lock` for the critical section that mutates `.fdx/.workflow/**` and commits workflow state
+- acquire `workflow.lock` for the critical section that mutates `.burl/.workflow/**` and commits workflow state
 
 **Steps:**
 1. Verify task is in DOING and worktree exists.
@@ -658,7 +658,7 @@ If `build_command` is non-empty:
 9. Commit workflow branch (if enabled).
 10. Release lock.
 
-### 14.3 `fdx validate`
+### 14.3 `burl validate`
 
 - Acquire lock.
 - Run validations (scope/stubs/build/test).
@@ -666,11 +666,11 @@ If `build_command` is non-empty:
 - No bucket move.
 - Release lock.
 
-### 14.4 `fdx approve`
+### 14.4 `burl approve`
 
 **Locks:**
 - acquire `TASK.lock`
-- acquire `workflow.lock` for the critical section that mutates `.fdx/.workflow/**` and commits workflow state
+- acquire `workflow.lock` for the critical section that mutates `.burl/.workflow/**` and commits workflow state
 
 **Steps:**
 1. Verify task is in QA.
@@ -688,7 +688,7 @@ If `build_command` is non-empty:
 11. Commit workflow branch (if enabled).
 12. Release lock.
 
-### 14.5 `fdx reject`
+### 14.5 `burl reject`
 
 - Acquire lock.
 - Verify task is in QA.
@@ -706,12 +706,12 @@ If `build_command` is non-empty:
 
 ## 15. Logging & Observability
 
-All logs live under the workflow state directory (`.fdx/.workflow/` by default) and are committed to the workflow branch so they travel with the workflow when moving machines.
+All logs live under the workflow state directory (`.burl/.workflow/` by default) and are committed to the workflow branch so they travel with the workflow when moving machines.
 
 ### 15.1 Event log format (NDJSON)
 
-Append-only file (default layout): `.fdx/.workflow/events/events.ndjson`  
-Optional per-task logs: `.fdx/.workflow/events/TASK-001.ndjson`
+Append-only file (default layout): `.burl/.workflow/events/events.ndjson`  
+Optional per-task logs: `.burl/.workflow/events/TASK-001.ndjson`
 
 Example record:
 ```json
@@ -745,7 +745,7 @@ Examples:
 ❌ Cannot claim TASK-001
 
 Reason: task is locked by another process
-Lock: .fdx/.workflow/locks/TASK-001.lock (created 34m ago by worker@HOST)
+Lock: .burl/.workflow/locks/TASK-001.lock (created 34m ago by worker@HOST)
 ```
 
 **Scope violation**
@@ -790,7 +790,7 @@ src/player/jump.rs:45  + // TODO: implement cooldown
 - crash simulation: create lock then exit → stale lock recovery workflow
 - reject path preserves worktree and allows re-claim
 - approve conflict path produces deterministic failure
-- workflow durability: workflow branch contains committed state; recreate `.fdx/` worktree and continue
+- workflow durability: workflow branch contains committed state; recreate `.burl/` worktree and continue
 
 ### 18.3 Failure injection
 - simulate `git worktree add` failure
@@ -802,7 +802,7 @@ src/player/jump.rs:45  + // TODO: implement cooldown
 ## 19. Delivery Plan
 
 ### V1 Milestones (recommended)
-1. **Workflow bootstrap**: workflow branch + `.fdx/` worktree  
+1. **Workflow bootstrap**: workflow branch + `.burl/` worktree  
 2. **Core file model**: init/add/show/status  
 3. **Locking + atomic write utilities**  
 4. **claim (transactional)** with branch/worktree + base_sha  
@@ -814,8 +814,8 @@ src/player/jump.rs:45  + // TODO: implement cooldown
 10. **events log** + `clean` + lock tools  
 
 ### V2 (post-V1)
-- `fdx watch` automation loop
-- `fdx monitor` TUI dashboard
+- `burl watch` automation loop
+- `burl monitor` TUI dashboard
 - `agents.yaml` execution + prompt generation
 - more advanced conflict detection (actual diffs between tasks, not just declared overlaps)
 - PR integration (GitHub/GitLab)
@@ -841,7 +841,7 @@ src/player/jump.rs:45  + // TODO: implement cooldown
 ## Appendix A — Minimal Rust Module Layout (suggested)
 
 ```
-fdx/
+burl/
   src/
     main.rs
     cli/
@@ -864,8 +864,8 @@ fdx/
 
 ## Appendix B — Hard Requirements Checklist
 
-- [ ] Workflow state lives on a dedicated Git branch (default: `fdx`)  
-- [ ] Canonical workflow worktree exists (default: `.fdx/`) and is the only workflow source of truth  
+- [ ] Workflow state lives on a dedicated Git branch (default: `burl`)  
+- [ ] Canonical workflow worktree exists (default: `.burl/`) and is the only workflow source of truth  
 - [ ] Workflow state mutations are committed (and optionally pushed) after transitions  
 - [ ] Global workflow lock serializes workflow mutations/commits  
 - [ ] Per-task lock uses create_new semantics  
