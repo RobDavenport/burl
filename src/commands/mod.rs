@@ -1,8 +1,10 @@
 //! Command implementations for burl.
 //!
 //! This module provides the dispatcher that routes CLI commands to their
-//! implementations. Currently all commands are stubbed with "not implemented"
-//! messages and exit code 1.
+//! implementations. The `init` command is fully implemented; other commands
+//! are currently stubbed with "not implemented" messages.
+
+mod init;
 
 use crate::cli::{
     AddArgs, ApproveArgs, ClaimArgs, CleanArgs, Command, DoctorArgs, LockAction, LockClearArgs,
@@ -19,7 +21,7 @@ use crate::locks;
 /// is routed to its handler function.
 pub fn dispatch(command: Command) -> Result<()> {
     match command {
-        Command::Init => cmd_init(),
+        Command::Init => init::cmd_init(),
         Command::Add(args) => cmd_add(args),
         Command::Status => cmd_status(),
         Command::Show(args) => cmd_show(args),
@@ -46,12 +48,9 @@ fn dispatch_lock(lock_cmd: LockCommand) -> Result<()> {
 // ============================================================================
 // Command Implementations (Stubs)
 // ============================================================================
-// All commands below are stubbed and will be implemented in later tasks.
+// Most commands below are stubbed and will be implemented in later tasks.
 // Each stub returns a NotImplemented error with exit code 1.
-
-fn cmd_init() -> Result<()> {
-    Err(BurlError::NotImplemented("burl init".to_string()))
-}
+// The `init` command is implemented in the `init` module.
 
 fn cmd_add(_args: AddArgs) -> Result<()> {
     Err(BurlError::NotImplemented("burl add".to_string()))
@@ -187,14 +186,8 @@ mod tests {
     use super::*;
     use crate::exit_codes;
 
-    #[test]
-    fn init_returns_not_implemented() {
-        let result = cmd_init();
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert_eq!(err.exit_code(), exit_codes::USER_ERROR);
-        assert!(err.to_string().contains("not yet implemented"));
-    }
+    // Note: init is now fully implemented and tested in the init module.
+    // The dispatch test for init requires a git repo, so it's tested in init module.
 
     #[test]
     fn add_returns_not_implemented() {
@@ -344,11 +337,8 @@ mod tests {
 
     #[test]
     fn dispatch_routes_to_correct_handler() {
-        // Test that dispatch correctly routes each command type
-        let result = dispatch(Command::Init);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("burl init"));
-
+        // Test that dispatch correctly routes stubbed commands
+        // (init is tested separately in the init module since it needs a real git repo)
         let result = dispatch(Command::Status);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("burl status"));
