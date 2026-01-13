@@ -6,6 +6,7 @@
 pub mod add;
 pub mod approve;
 pub mod claim;
+pub mod clean;
 pub mod doctor;
 pub mod init;
 pub mod reject;
@@ -195,8 +196,8 @@ fn cmd_doctor(args: DoctorArgs) -> Result<()> {
     doctor::cmd_doctor(args)
 }
 
-fn cmd_clean(_args: CleanArgs) -> Result<()> {
-    Err(BurlError::NotImplemented("burl clean".to_string()))
+fn cmd_clean(args: CleanArgs) -> Result<()> {
+    clean::cmd_clean(args)
 }
 
 #[cfg(test)]
@@ -238,15 +239,5 @@ mod tests {
 
     // Note: doctor is now fully implemented with tests in doctor.rs
 
-    #[test]
-    fn clean_returns_not_implemented() {
-        let args = CleanArgs {
-            completed: false,
-            orphans: false,
-            yes: false,
-        };
-        let result = cmd_clean(args);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
+    // Note: clean is now fully implemented with tests in clean.rs
 }
