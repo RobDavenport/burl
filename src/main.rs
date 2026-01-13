@@ -10,7 +10,9 @@ pub mod config;
 pub mod context;
 pub mod error;
 pub mod exit_codes;
+pub mod fs;
 pub mod git;
+pub mod task;
 
 use cli::Cli;
 use std::process::ExitCode;
