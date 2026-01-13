@@ -139,19 +139,15 @@ pub fn cmd_approve(args: ApproveArgs) -> Result<()> {
     // Phase 3: Verify task has required git state
     // ========================================================================
 
-    let worktree_path = task_file.frontmatter.worktree.as_ref().ok_or_else(|| {
-        BurlError::UserError(format!(
-            "task '{}' has no recorded worktree.\n\n\
-             This task may be in an invalid state. Run `burl doctor` to diagnose.",
-            task_id
-        ))
-    })?;
+    let refs = crate::task_git::require_task_git_refs(
+        &ctx,
+        &task_id,
+        task_file.frontmatter.branch.as_deref(),
+        task_file.frontmatter.worktree.as_deref(),
+    )?;
 
-    let worktree_path = if PathBuf::from(worktree_path).is_absolute() {
-        PathBuf::from(worktree_path)
-    } else {
-        ctx.repo_root.join(worktree_path)
-    };
+    let expected_branch = refs.branch;
+    let worktree_path = refs.worktree_path;
 
     if !worktree_path.exists() {
         return Err(BurlError::UserError(format!(
@@ -160,14 +156,6 @@ pub fn cmd_approve(args: ApproveArgs) -> Result<()> {
             worktree_path.display()
         )));
     }
-
-    let expected_branch = task_file.frontmatter.branch.clone().ok_or_else(|| {
-        BurlError::UserError(format!(
-            "task '{}' has no recorded branch.\n\n\
-             This task may be in an invalid state. Run `burl doctor` to diagnose.",
-            task_id
-        ))
-    })?;
 
     let current_branch = get_current_branch(&worktree_path)?;
     if current_branch != expected_branch {
@@ -288,17 +276,29 @@ fn approve_rebase_ff_only(
 
     // Step 6: Cleanup worktree and branch (best-effort)
     println!("Cleaning up worktree and branch...");
-    let cleanup_result = cleanup_task_worktree(
-        &ctx.repo_root,
-        branch,
-        Some(worktree_path.as_path()),
-        true, // Force removal since changes are now merged
-    );
+    let cleanup_failed = match crate::git::has_worktree_changes(worktree_path) {
+        Ok(true) | Err(_) => {
+            eprintln!(
+                "Warning: task worktree has uncommitted changes; skipping cleanup to avoid data loss: {}",
+                worktree_path.display()
+            );
+            true
+        }
+        Ok(false) => {
+            let cleanup_result = cleanup_task_worktree(
+                &ctx.repo_root,
+                branch,
+                Some(worktree_path.as_path()),
+                true, // Force removal since changes are now merged
+            );
 
-    let cleanup_failed = cleanup_result.is_err();
-    if let Err(e) = &cleanup_result {
-        eprintln!("Warning: cleanup failed (will proceed anyway): {}", e);
-    }
+            if let Err(e) = &cleanup_result {
+                eprintln!("Warning: cleanup failed (will proceed anyway): {}", e);
+            }
+
+            cleanup_result.is_err()
+        }
+    };
 
     // Step 7: Workflow state mutation
     complete_approval(ctx, config, task_id, task_path, task_file, cleanup_failed)?;
@@ -408,13 +408,25 @@ fn approve_ff_only(
 
     // Step 7: Cleanup worktree and branch (best-effort)
     println!("Cleaning up worktree and branch...");
-    let cleanup_result =
-        cleanup_task_worktree(&ctx.repo_root, branch, Some(worktree_path.as_path()), true);
+    let cleanup_failed = match crate::git::has_worktree_changes(worktree_path) {
+        Ok(true) | Err(_) => {
+            eprintln!(
+                "Warning: task worktree has uncommitted changes; skipping cleanup to avoid data loss: {}",
+                worktree_path.display()
+            );
+            true
+        }
+        Ok(false) => {
+            let cleanup_result =
+                cleanup_task_worktree(&ctx.repo_root, branch, Some(worktree_path.as_path()), true);
 
-    let cleanup_failed = cleanup_result.is_err();
-    if let Err(e) = &cleanup_result {
-        eprintln!("Warning: cleanup failed (will proceed anyway): {}", e);
-    }
+            if let Err(e) = &cleanup_result {
+                eprintln!("Warning: cleanup failed (will proceed anyway): {}", e);
+            }
+
+            cleanup_result.is_err()
+        }
+    };
 
     // Step 8: Workflow state mutation
     complete_approval(ctx, config, task_id, task_path, task_file, cleanup_failed)?;
@@ -1043,6 +1055,39 @@ mod tests {
         assert!(
             log_output.contains("Add valid implementation"),
             "Main should contain the task commit"
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_approve_skips_cleanup_when_worktree_dirty() {
+        let temp_dir = create_test_repo_with_remote();
+        let _guard = DirGuard::new(temp_dir.path());
+
+        cmd_init().unwrap();
+
+        // Skip build validation to keep the test focused.
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
+        std::fs::write(&config_path, "build_command: \"\"\n").unwrap();
+
+        let worktree_path = setup_task_in_qa(&temp_dir);
+
+        // Make the worktree "dirty" in a way that shouldn't block rebase/merge.
+        std::fs::write(worktree_path.join("untracked.txt"), "keep me").unwrap();
+
+        let result = cmd_approve(ApproveArgs {
+            task_id: "TASK-001".to_string(),
+        });
+        assert!(result.is_ok(), "Approve should succeed: {:?}", result);
+
+        let done_path = temp_dir
+            .path()
+            .join(".burl/.workflow/DONE/TASK-001-test-approve.md");
+        assert!(done_path.exists(), "Task should be in DONE bucket");
+
+        assert!(
+            worktree_path.exists(),
+            "Dirty worktree should be preserved to avoid data loss"
         );
     }
 

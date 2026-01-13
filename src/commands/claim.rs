@@ -33,7 +33,6 @@ use crate::task::TaskFile;
 use crate::workflow::{TaskIndex, TaskInfo, slugify_title, validate_task_id};
 use chrono::Utc;
 use serde_json::json;
-use std::path::PathBuf;
 
 /// Priority ordering for task selection (high > medium > low > none/other)
 fn priority_rank(priority: &str) -> u32 {
@@ -416,42 +415,46 @@ pub fn cmd_claim(args: ClaimArgs) -> Result<()> {
     let existing_worktree = task_file.frontmatter.worktree.as_deref();
     let existing_base_sha = task_file.frontmatter.base_sha.as_deref();
 
-    // Check if this is a re-claim with existing state
-    if existing_branch.is_some() || existing_worktree.is_some() {
-        // Validate existing state
-        if let (Some(branch), Some(worktree)) = (existing_branch, existing_worktree) {
-            let worktree_path = if PathBuf::from(worktree).is_absolute() {
-                PathBuf::from(worktree)
-            } else {
-                ctx.repo_root.join(worktree)
-            };
+    let existing_git_refs = crate::task_git::validate_task_git_refs_if_present(
+        &ctx,
+        &task_info.id,
+        existing_branch,
+        existing_worktree,
+    )?;
+    let existing_worktree_for_setup = existing_git_refs
+        .as_ref()
+        .map(|r| r.worktree_path.to_string_lossy().to_string());
 
-            // Check if worktree exists
-            if worktree_path.exists() {
-                // Verify it's on the correct branch
-                if let Ok(current_branch) = crate::git_worktree::get_current_branch(&worktree_path)
-                    && current_branch != branch
-                {
-                    return Err(BurlError::UserError(format!(
-                        "task has recorded worktree at '{}' but it's on branch '{}', not '{}'.\n\n\
-                         Run `burl doctor` to diagnose and repair this inconsistency.",
-                        worktree_path.display(),
-                        current_branch,
-                        branch
-                    )));
-                }
-            } else if branch_exists(&ctx.repo_root, branch)? {
-                // Branch exists but worktree is missing
+    // Check if this is a re-claim with existing state
+    if let Some(refs) = &existing_git_refs {
+        let branch = refs.branch.as_str();
+        let worktree_path = &refs.worktree_path;
+
+        // Check if worktree exists
+        if worktree_path.exists() {
+            // Verify it's on the correct branch
+            if let Ok(current_branch) = crate::git_worktree::get_current_branch(worktree_path)
+                && current_branch != branch
+            {
                 return Err(BurlError::UserError(format!(
-                    "task has recorded branch '{}' but worktree at '{}' is missing.\n\n\
-                     Run `burl doctor` to diagnose and repair this inconsistency,\n\
-                     or manually recreate the worktree:\n  git worktree add {} {}",
-                    branch,
+                    "task has recorded worktree at '{}' but it's on branch '{}', not '{}'.\n\n\
+                     Run `burl doctor` to diagnose and repair this inconsistency.",
                     worktree_path.display(),
-                    worktree_path.display(),
+                    current_branch,
                     branch
                 )));
             }
+        } else if branch_exists(&ctx.repo_root, branch)? {
+            // Branch exists but worktree is missing
+            return Err(BurlError::UserError(format!(
+                "task has recorded branch '{}' but worktree at '{}' is missing.\n\n\
+                 Run `burl doctor` to diagnose and repair this inconsistency,\n\
+                 or manually recreate the worktree:\n  git worktree add {} {}",
+                branch,
+                worktree_path.display(),
+                worktree_path.display(),
+                branch
+            )));
         }
     }
 
@@ -477,7 +480,7 @@ pub fn cmd_claim(args: ClaimArgs) -> Result<()> {
         &config.remote,
         &config.main_branch,
         existing_branch,
-        existing_worktree,
+        existing_worktree_for_setup.as_deref(),
     ) {
         Ok(info) => {
             transaction.branch_name = info.branch.clone();

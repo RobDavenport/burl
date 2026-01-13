@@ -203,6 +203,14 @@ pub fn has_uncommitted_changes<P: AsRef<Path>>(cwd: P) -> Result<bool> {
     Ok(!output.is_empty())
 }
 
+/// Check if the working directory has any working tree changes (including untracked).
+///
+/// Uses `git status --porcelain` and treats any output as "dirty".
+pub fn has_worktree_changes<P: AsRef<Path>>(cwd: P) -> Result<bool> {
+    let output = run_git(cwd, &["status", "--porcelain"])?;
+    Ok(!output.is_empty())
+}
+
 /// Verify that the workflow worktree has no uncommitted tracked changes.
 ///
 /// This is a precondition check for any command that commits workflow state.
@@ -330,6 +338,16 @@ mod tests {
         let result = has_uncommitted_changes(temp_dir.path());
         assert!(result.is_ok());
         assert!(!result.unwrap()); // Untracked files don't count
+    }
+
+    #[test]
+    fn test_has_worktree_changes_counts_untracked() {
+        let temp_dir = create_test_repo();
+        std::fs::write(temp_dir.path().join("untracked.txt"), "untracked\n").unwrap();
+
+        let result = has_worktree_changes(temp_dir.path());
+        assert!(result.is_ok());
+        assert!(result.unwrap());
     }
 
     #[test]

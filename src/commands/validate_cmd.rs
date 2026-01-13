@@ -134,19 +134,15 @@ pub fn cmd_validate(args: ValidateArgs) -> Result<()> {
     // Phase 3: Verify task has required git state
     // ========================================================================
 
-    let worktree_path = task_file.frontmatter.worktree.as_ref().ok_or_else(|| {
-        BurlError::UserError(format!(
-            "task '{}' has no recorded worktree.\n\n\
-             This task may be in an invalid state. Run `burl doctor` to diagnose.",
-            task_id
-        ))
-    })?;
+    let refs = crate::task_git::require_task_git_refs(
+        &ctx,
+        &task_id,
+        task_file.frontmatter.branch.as_deref(),
+        task_file.frontmatter.worktree.as_deref(),
+    )?;
 
-    let worktree_path = if PathBuf::from(worktree_path).is_absolute() {
-        PathBuf::from(worktree_path)
-    } else {
-        ctx.repo_root.join(worktree_path)
-    };
+    let expected_branch = refs.branch;
+    let worktree_path = refs.worktree_path;
 
     if !worktree_path.exists() {
         return Err(BurlError::UserError(format!(
@@ -155,14 +151,6 @@ pub fn cmd_validate(args: ValidateArgs) -> Result<()> {
             worktree_path.display()
         )));
     }
-
-    let expected_branch = task_file.frontmatter.branch.clone().ok_or_else(|| {
-        BurlError::UserError(format!(
-            "task '{}' has no recorded branch.\n\n\
-             This task may be in an invalid state. Run `burl doctor` to diagnose.",
-            task_id
-        ))
-    })?;
 
     let current_branch = get_current_branch(&worktree_path)?;
     if current_branch != expected_branch {

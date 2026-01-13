@@ -422,6 +422,19 @@ fn remove_worktree_safe(repo_root: &Path, worktree_path: &Path) -> Result<()> {
         )));
     }
 
+    // Avoid data loss: refuse to force-remove a dirty worktree.
+    if crate::git::has_worktree_changes(worktree_path)? {
+        return Err(BurlError::UserError(format!(
+            "refusing to remove worktree with uncommitted changes: {}\n\n\
+             Review with:\n  git -C {} status\n\n\
+             If you are sure and want to discard the changes, remove manually:\n  git -C {} worktree remove --force {}",
+            worktree_path.display(),
+            worktree_path.display(),
+            repo_root.display(),
+            worktree_path.display(),
+        )));
+    }
+
     // Use git worktree remove (with force since we're cleaning up)
     remove_worktree(repo_root, worktree_path, true)
 }
@@ -640,6 +653,53 @@ mod tests {
 
         // Verify orphan was removed
         assert!(!orphan_dir.exists());
+    }
+
+    #[test]
+    #[serial]
+    fn test_clean_skips_dirty_orphan_worktree() {
+        let temp_dir = create_test_repo();
+        let _guard = DirGuard::new(temp_dir.path());
+
+        cmd_init().unwrap();
+
+        let repo_root = temp_dir.path();
+        let worktree_path = repo_root.join(".worktrees/orphan-wt");
+
+        // Create a branch and add a worktree under .worktrees/
+        std::process::Command::new("git")
+            .current_dir(repo_root)
+            .args(["branch", "orphan-branch"])
+            .output()
+            .expect("failed to create branch");
+        std::process::Command::new("git")
+            .current_dir(repo_root)
+            .args([
+                "worktree",
+                "add",
+                worktree_path.to_str().unwrap(),
+                "orphan-branch",
+            ])
+            .output()
+            .expect("failed to create worktree");
+
+        // Make the worktree dirty (untracked file).
+        std::fs::write(worktree_path.join("untracked.txt"), "dirty").unwrap();
+        assert!(worktree_path.exists());
+
+        // Run clean with --yes. The dirty worktree should be skipped.
+        let args = CleanArgs {
+            completed: false,
+            orphans: true,
+            yes: true,
+        };
+
+        let result = cmd_clean(args);
+        assert!(result.is_ok());
+        assert!(
+            worktree_path.exists(),
+            "dirty orphan worktree should not be removed"
+        );
     }
 
     #[test]
