@@ -4,6 +4,7 @@
 //! implementations.
 
 pub mod add;
+pub mod approve;
 pub mod claim;
 pub mod init;
 mod show;
@@ -71,8 +72,8 @@ fn cmd_validate(args: ValidateArgs) -> Result<()> {
     validate_cmd::cmd_validate(args)
 }
 
-fn cmd_approve(_args: ApproveArgs) -> Result<()> {
-    Err(BurlError::NotImplemented("burl approve".to_string()))
+fn cmd_approve(args: ApproveArgs) -> Result<()> {
+    approve::cmd_approve(args)
 }
 
 fn cmd_reject(_args: RejectArgs) -> Result<()> {
@@ -208,16 +209,7 @@ mod tests {
     // Note: claim is now fully implemented with tests in claims.rs
     // Note: submit is now fully implemented with tests in submit.rs
     // Note: validate is now fully implemented with tests in validate_cmd.rs
-
-    #[test]
-    fn approve_returns_not_implemented() {
-        let args = ApproveArgs {
-            task_id: "TASK-001".to_string(),
-        };
-        let result = cmd_approve(args);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
+    // Note: approve is now fully implemented with tests in approve.rs
 
     #[test]
     fn reject_returns_not_implemented() {
