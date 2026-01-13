@@ -17,13 +17,13 @@ pub mod validate_cmd;
 mod worktree;
 
 use crate::cli::{
-    ApproveArgs, ClaimArgs, CleanArgs, Command, DoctorArgs, LockAction, LockClearArgs,
-    LockCommand, RejectArgs, SubmitArgs, ValidateArgs,
+    ApproveArgs, ClaimArgs, CleanArgs, Command, DoctorArgs, LockAction, LockClearArgs, LockCommand,
+    RejectArgs, SubmitArgs, ValidateArgs,
 };
 use crate::config::Config;
 use crate::context::require_initialized_workflow;
 use crate::error::{BurlError, Result};
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::locks;
 use serde_json::json;
 
@@ -58,10 +58,10 @@ fn dispatch_lock(lock_cmd: LockCommand) -> Result<()> {
 }
 
 // ============================================================================
-// Command Implementations (Stubs)
+// Command Entry Points
 // ============================================================================
-// Commands below are stubbed and will be implemented in later tasks.
-// Each stub returns a NotImplemented error with exit code 1.
+// Thin wrappers to keep `dispatch` tidy and leave room for shared pre/post
+// behavior per command (logging, common guards, etc.).
 
 fn cmd_claim(args: ClaimArgs) -> Result<()> {
     claim::cmd_claim(args)
@@ -111,11 +111,17 @@ fn cmd_lock_list() -> Result<()> {
         if let Some(pid) = lock.metadata.pid {
             println!("    PID:        {}", pid);
         }
-        println!("    Created:    {}", lock.metadata.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
+        println!(
+            "    Created:    {}",
+            lock.metadata.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+        );
         println!("    Age:        {}", lock.metadata.age_string());
         println!("    Action:     {}", lock.metadata.action);
         if lock.is_stale {
-            println!("    Status:     STALE (exceeds {} min threshold)", config.lock_stale_minutes);
+            println!(
+                "    Status:     STALE (exceeds {} min threshold)",
+                config.lock_stale_minutes
+            );
         }
         println!("    Path:       {}", lock.path.display());
         println!();
@@ -181,7 +187,10 @@ fn cmd_lock_clear(args: LockClearArgs) -> Result<()> {
     if let Some(pid) = cleared.metadata.pid {
         println!("  PID:        {}", pid);
     }
-    println!("  Created:    {}", cleared.metadata.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
+    println!(
+        "  Created:    {}",
+        cleared.metadata.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+    );
     println!("  Age:        {}", cleared.metadata.age_string());
     println!("  Action:     {}", cleared.metadata.action);
     if cleared.is_stale {

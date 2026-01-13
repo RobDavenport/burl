@@ -240,7 +240,9 @@ impl TaskFile {
         // Find the closing --- delimiter
         let rest = &normalized[first_newline + 1..];
         let closing_pos = rest.find("\n---").ok_or_else(|| {
-            BurlError::UserError("task file missing closing '---' frontmatter delimiter".to_string())
+            BurlError::UserError(
+                "task file missing closing '---' frontmatter delimiter".to_string(),
+            )
         })?;
 
         // Extract frontmatter content (between the delimiters)
@@ -298,7 +300,11 @@ impl TaskFile {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         let content = std::fs::read_to_string(path).map_err(|e| {
-            BurlError::UserError(format!("failed to read task file '{}': {}", path.display(), e))
+            BurlError::UserError(format!(
+                "failed to read task file '{}': {}",
+                path.display(),
+                e
+            ))
         })?;
         Self::parse(&content)
     }
@@ -388,18 +394,18 @@ impl TaskFile {
             let insert_pos = section_end;
 
             // Ensure there's a newline before the new content
-            let prefix = if insert_pos > 0
-                && !self.body[..insert_pos].ends_with('\n')
-            {
+            let prefix = if insert_pos > 0 && !self.body[..insert_pos].ends_with('\n') {
                 "\n"
             } else {
                 ""
             };
 
-            self.body.insert_str(insert_pos, &format!("{}{}\n", prefix, content));
+            self.body
+                .insert_str(insert_pos, &format!("{}{}\n", prefix, content));
         } else {
             // Create new QA Report section at the end
-            self.body.push_str(&format!("\n{}\n{}\n", QA_REPORT_HEADING, content));
+            self.body
+                .push_str(&format!("\n{}\n{}\n", QA_REPORT_HEADING, content));
         }
     }
 
@@ -629,7 +635,10 @@ Body without closing delimiter
         task.set_git_info("task-001-test", ".worktrees/task-001-test", "abc123");
 
         assert_eq!(task.frontmatter.branch, Some("task-001-test".to_string()));
-        assert_eq!(task.frontmatter.worktree, Some(".worktrees/task-001-test".to_string()));
+        assert_eq!(
+            task.frontmatter.worktree,
+            Some(".worktrees/task-001-test".to_string())
+        );
         assert_eq!(task.frontmatter.base_sha, Some("abc123".to_string()));
     }
 
@@ -806,7 +815,10 @@ Load test.
         // Reload and verify
         let loaded = TaskFile::load(&file_path).unwrap();
         assert_eq!(loaded.frontmatter.id, "TASK-002");
-        assert_eq!(loaded.frontmatter.assigned_to, Some("test@example.com".to_string()));
+        assert_eq!(
+            loaded.frontmatter.assigned_to,
+            Some("test@example.com".to_string())
+        );
     }
 
     #[test]
@@ -836,6 +848,11 @@ Load test.
     fn test_load_nonexistent_file() {
         let result = TaskFile::load("/nonexistent/path/TASK-001.md");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("failed to read task file"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("failed to read task file")
+        );
     }
 }

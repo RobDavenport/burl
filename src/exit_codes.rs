@@ -28,7 +28,13 @@ mod tests {
 
     #[test]
     fn exit_codes_are_distinct() {
-        let codes = [SUCCESS, USER_ERROR, VALIDATION_FAILURE, GIT_FAILURE, LOCK_FAILURE];
+        let codes = [
+            SUCCESS,
+            USER_ERROR,
+            VALIDATION_FAILURE,
+            GIT_FAILURE,
+            LOCK_FAILURE,
+        ];
         for (i, &a) in codes.iter().enumerate() {
             for (j, &b) in codes.iter().enumerate() {
                 if i != j {

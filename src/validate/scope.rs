@@ -90,10 +90,7 @@ impl ScopeValidationResult {
         for violation in &self.violations {
             match &violation.violation_type {
                 ScopeViolationType::Forbidden => {
-                    let pattern = violation
-                        .matched_pattern
-                        .as_deref()
-                        .unwrap_or("<unknown>");
+                    let pattern = violation.matched_pattern.as_deref().unwrap_or("<unknown>");
                     msg.push_str(&format!(
                         "  x {}  (matches must_not_touch: {})\n",
                         violation.file_path, pattern
@@ -174,7 +171,11 @@ pub fn validate_scope(
         let normalized_file = normalize_path(file);
 
         // Rule S1: Check against must_not_touch (takes priority)
-        if let Some(pattern) = matches_globset(&forbidden_globs, &normalized_file, &frontmatter.must_not_touch) {
+        if let Some(pattern) = matches_globset(
+            &forbidden_globs,
+            &normalized_file,
+            &frontmatter.must_not_touch,
+        ) {
             violations.push(ScopeViolation::forbidden(&normalized_file, pattern));
             continue; // S1 takes priority, don't check S2
         }
@@ -212,9 +213,9 @@ fn build_globset(patterns: &[String], field_name: &str) -> Result<GlobSet> {
         builder.add(glob);
     }
 
-    builder.build().map_err(|e| {
-        BurlError::UserError(format!("failed to compile {} globs: {}", field_name, e))
-    })
+    builder
+        .build()
+        .map_err(|e| BurlError::UserError(format!("failed to compile {} globs: {}", field_name, e)))
 }
 
 /// Check if a file matches any pattern in the globset, returning the matched pattern.
@@ -232,7 +233,10 @@ fn matches_globset(globset: &GlobSet, file: &str, patterns: &[String]) -> Option
 ///
 /// For example, if `affects` contains `src/player/`, then
 /// `src/player/jump.rs` is allowed.
-fn is_under_allowed_directory(file: &str, allowed_paths: &std::collections::HashSet<String>) -> bool {
+fn is_under_allowed_directory(
+    file: &str,
+    allowed_paths: &std::collections::HashSet<String>,
+) -> bool {
     for allowed in allowed_paths {
         // Check if allowed path is a directory (ends with /) or if file starts with allowed path
         if allowed.ends_with('/') && file.starts_with(allowed) {
@@ -269,13 +273,14 @@ mod tests {
         affects_globs: Vec<&str>,
         must_not_touch: Vec<&str>,
     ) -> TaskFrontmatter {
-        let mut fm = TaskFrontmatter::default();
-        fm.id = "TASK-001".to_string();
-        fm.title = "Test task".to_string();
-        fm.affects = affects.into_iter().map(String::from).collect();
-        fm.affects_globs = affects_globs.into_iter().map(String::from).collect();
-        fm.must_not_touch = must_not_touch.into_iter().map(String::from).collect();
-        fm
+        TaskFrontmatter {
+            id: "TASK-001".to_string(),
+            title: "Test task".to_string(),
+            affects: affects.into_iter().map(String::from).collect(),
+            affects_globs: affects_globs.into_iter().map(String::from).collect(),
+            must_not_touch: must_not_touch.into_iter().map(String::from).collect(),
+            ..Default::default()
+        }
     }
 
     // =========================================================================
@@ -297,11 +302,7 @@ mod tests {
     /// Test: Forbidden - changed file in `src/net/**` with `must_not_touch: [src/net/**]` -> fail
     #[test]
     fn test_forbidden_glob_fail() {
-        let fm = make_frontmatter(
-            vec!["src/main.rs"],
-            vec!["src/**"],
-            vec!["src/net/**"],
-        );
+        let fm = make_frontmatter(vec!["src/main.rs"], vec!["src/**"], vec!["src/net/**"]);
         let changed = vec!["src/net/client.rs".to_string()];
 
         let result = validate_scope(&fm, &changed).unwrap();
@@ -309,8 +310,14 @@ mod tests {
         assert!(!result.passed);
         assert_eq!(result.violations.len(), 1);
         assert_eq!(result.violations[0].file_path, "src/net/client.rs");
-        assert_eq!(result.violations[0].violation_type, ScopeViolationType::Forbidden);
-        assert_eq!(result.violations[0].matched_pattern, Some("src/net/**".to_string()));
+        assert_eq!(
+            result.violations[0].violation_type,
+            ScopeViolationType::Forbidden
+        );
+        assert_eq!(
+            result.violations[0].matched_pattern,
+            Some("src/net/**".to_string())
+        );
     }
 
     /// Test: Out-of-scope - changed file not matching any allow -> fail
@@ -324,7 +331,10 @@ mod tests {
         assert!(!result.passed);
         assert_eq!(result.violations.len(), 1);
         assert_eq!(result.violations[0].file_path, "src/other.rs");
-        assert_eq!(result.violations[0].violation_type, ScopeViolationType::OutOfScope);
+        assert_eq!(
+            result.violations[0].violation_type,
+            ScopeViolationType::OutOfScope
+        );
     }
 
     /// Test: New file - `affects_globs: [src/player/**]` and new file `src/player/jump.rs` -> pass
@@ -347,9 +357,9 @@ mod tests {
     #[test]
     fn test_forbidden_takes_priority_over_allowed() {
         let fm = make_frontmatter(
-            vec!["src/enemy/boss.rs"],  // explicitly allowed
-            vec!["src/enemy/**"],       // glob allowed
-            vec!["src/enemy/**"],       // but also forbidden!
+            vec!["src/enemy/boss.rs"], // explicitly allowed
+            vec!["src/enemy/**"],      // glob allowed
+            vec!["src/enemy/**"],      // but also forbidden!
         );
         let changed = vec!["src/enemy/boss.rs".to_string()];
 
@@ -357,7 +367,10 @@ mod tests {
 
         assert!(!result.passed);
         assert_eq!(result.violations.len(), 1);
-        assert_eq!(result.violations[0].violation_type, ScopeViolationType::Forbidden);
+        assert_eq!(
+            result.violations[0].violation_type,
+            ScopeViolationType::Forbidden
+        );
     }
 
     /// Test multiple forbidden patterns.
@@ -378,7 +391,12 @@ mod tests {
 
         assert!(!result.passed);
         assert_eq!(result.violations.len(), 3);
-        assert!(result.violations.iter().all(|v| v.violation_type == ScopeViolationType::Forbidden));
+        assert!(
+            result
+                .violations
+                .iter()
+                .all(|v| v.violation_type == ScopeViolationType::Forbidden)
+        );
     }
 
     // =========================================================================
@@ -425,10 +443,7 @@ mod tests {
             vec!["src/player/**"],
             vec![],
         );
-        let changed = vec![
-            "Cargo.toml".to_string(),
-            "src/player/jump.rs".to_string(),
-        ];
+        let changed = vec!["Cargo.toml".to_string(), "src/player/jump.rs".to_string()];
 
         let result = validate_scope(&fm, &changed).unwrap();
         assert!(result.passed);
@@ -451,14 +466,10 @@ mod tests {
     /// Test mixed violations (some forbidden, some out of scope).
     #[test]
     fn test_mixed_violations() {
-        let fm = make_frontmatter(
-            vec!["src/main.rs"],
-            vec![],
-            vec!["src/secret/**"],
-        );
+        let fm = make_frontmatter(vec!["src/main.rs"], vec![], vec!["src/secret/**"]);
         let changed = vec![
-            "src/secret/keys.rs".to_string(),  // forbidden
-            "src/other/file.rs".to_string(),   // out of scope
+            "src/secret/keys.rs".to_string(), // forbidden
+            "src/other/file.rs".to_string(),  // out of scope
         ];
 
         let result = validate_scope(&fm, &changed).unwrap();
@@ -466,10 +477,14 @@ mod tests {
         assert!(!result.passed);
         assert_eq!(result.violations.len(), 2);
 
-        let forbidden: Vec<_> = result.violations.iter()
+        let forbidden: Vec<_> = result
+            .violations
+            .iter()
             .filter(|v| v.violation_type == ScopeViolationType::Forbidden)
             .collect();
-        let out_of_scope: Vec<_> = result.violations.iter()
+        let out_of_scope: Vec<_> = result
+            .violations
+            .iter()
             .filter(|v| v.violation_type == ScopeViolationType::OutOfScope)
             .collect();
 
@@ -500,7 +515,10 @@ mod tests {
         let result = validate_scope(&fm, &changed).unwrap();
 
         assert!(!result.passed);
-        assert_eq!(result.violations[0].violation_type, ScopeViolationType::OutOfScope);
+        assert_eq!(
+            result.violations[0].violation_type,
+            ScopeViolationType::OutOfScope
+        );
     }
 
     /// Test path normalization (backslashes to forward slashes).
@@ -517,11 +535,13 @@ mod tests {
     /// Test glob with backslashes in pattern.
     #[test]
     fn test_pattern_normalization() {
-        let mut fm = TaskFrontmatter::default();
-        fm.id = "TASK-001".to_string();
-        fm.title = "Test".to_string();
-        // Windows-style pattern (should be normalized)
-        fm.affects_globs = vec!["src\\player\\**".to_string()];
+        let fm = TaskFrontmatter {
+            id: "TASK-001".to_string(),
+            title: "Test".to_string(),
+            // Windows-style pattern (should be normalized)
+            affects_globs: vec!["src\\player\\**".to_string()],
+            ..Default::default()
+        };
 
         let changed = vec!["src/player/jump.rs".to_string()];
 
@@ -585,9 +605,10 @@ mod tests {
     /// Test error message format for forbidden violations.
     #[test]
     fn test_error_format_forbidden() {
-        let result = ScopeValidationResult::fail(vec![
-            ScopeViolation::forbidden("src/secret/keys.rs", "src/secret/**"),
-        ]);
+        let result = ScopeValidationResult::fail(vec![ScopeViolation::forbidden(
+            "src/secret/keys.rs",
+            "src/secret/**",
+        )]);
 
         let msg = result.format_error("TASK-001");
         assert!(msg.contains("Scope violation"));
@@ -600,9 +621,8 @@ mod tests {
     /// Test error message format for out-of-scope violations.
     #[test]
     fn test_error_format_out_of_scope() {
-        let result = ScopeValidationResult::fail(vec![
-            ScopeViolation::out_of_scope("src/unauthorized.rs"),
-        ]);
+        let result =
+            ScopeValidationResult::fail(vec![ScopeViolation::out_of_scope("src/unauthorized.rs")]);
 
         let msg = result.format_error("TASK-002");
         assert!(msg.contains("src/unauthorized.rs"));
@@ -624,10 +644,12 @@ mod tests {
     /// Test invalid glob pattern returns error.
     #[test]
     fn test_invalid_glob_pattern() {
-        let mut fm = TaskFrontmatter::default();
-        fm.id = "TASK-001".to_string();
-        fm.title = "Test".to_string();
-        fm.must_not_touch = vec!["[invalid".to_string()]; // Invalid glob
+        let fm = TaskFrontmatter {
+            id: "TASK-001".to_string(),
+            title: "Test".to_string(),
+            must_not_touch: vec!["[invalid".to_string()], // Invalid glob
+            ..Default::default()
+        };
 
         let changed = vec!["src/main.rs".to_string()];
 
@@ -641,11 +663,13 @@ mod tests {
     /// Test invalid affects_globs pattern returns error.
     #[test]
     fn test_invalid_affects_globs_pattern() {
-        let mut fm = TaskFrontmatter::default();
-        fm.id = "TASK-001".to_string();
-        fm.title = "Test".to_string();
-        // An unclosed bracket is an invalid glob pattern
-        fm.affects_globs = vec!["src/[unclosed".to_string()];
+        let fm = TaskFrontmatter {
+            id: "TASK-001".to_string(),
+            title: "Test".to_string(),
+            // An unclosed bracket is an invalid glob pattern
+            affects_globs: vec!["src/[unclosed".to_string()],
+            ..Default::default()
+        };
 
         let changed = vec!["src/main.rs".to_string()];
 

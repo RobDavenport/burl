@@ -24,12 +24,12 @@ use crate::cli::DoctorArgs;
 use crate::config::Config;
 use crate::context::require_initialized_workflow;
 use crate::error::{BurlError, Result};
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::git::run_git;
 use crate::git_worktree::{branch_exists, list_worktrees};
 use crate::locks;
 use crate::task::TaskFile;
-use crate::workflow::{TaskIndex, BUCKETS};
+use crate::workflow::{BUCKETS, TaskIndex};
 use serde_json::json;
 use std::collections::HashSet;
 use std::fs;
@@ -120,7 +120,9 @@ impl DoctorReport {
 
     #[allow(dead_code)]
     fn has_errors(&self) -> bool {
-        self.issues.iter().any(|i| i.severity == IssueSeverity::Error)
+        self.issues
+            .iter()
+            .any(|i| i.severity == IssueSeverity::Error)
     }
 }
 
@@ -169,11 +171,7 @@ pub fn cmd_doctor(args: DoctorArgs) -> Result<()> {
     }
 
     // In repair mode, check if there are still unrepaired issues
-    let remaining_issues: Vec<_> = report
-        .issues
-        .iter()
-        .filter(|i| !i.repairable)
-        .collect();
+    let remaining_issues: Vec<_> = report.issues.iter().filter(|i| !i.repairable).collect();
 
     if args.repair && !remaining_issues.is_empty() {
         return Err(BurlError::UserError(format!(
@@ -534,10 +532,7 @@ fn check_bucket_metadata_mismatches(
                         Issue::new(
                             IssueSeverity::Warning,
                             "bucket_mismatch",
-                            &format!(
-                                "Task {} in READY has submitted_at set",
-                                task_info.id
-                            ),
+                            &format!("Task {} in READY has submitted_at set", task_info.id),
                         )
                         .with_path(&task_info.path.display().to_string())
                         .with_remediation("Task should be moved to QA if already submitted")
@@ -552,10 +547,7 @@ fn check_bucket_metadata_mismatches(
                         Issue::new(
                             IssueSeverity::Warning,
                             "bucket_mismatch",
-                            &format!(
-                                "Task {} in DOING has submitted_at set",
-                                task_info.id
-                            ),
+                            &format!("Task {} in DOING has submitted_at set", task_info.id),
                         )
                         .with_path(&task_info.path.display().to_string())
                         .with_remediation("Task should be moved to QA if already submitted")
@@ -569,10 +561,7 @@ fn check_bucket_metadata_mismatches(
                         Issue::new(
                             IssueSeverity::Warning,
                             "bucket_mismatch",
-                            &format!(
-                                "Task {} in DOING has completed_at set",
-                                task_info.id
-                            ),
+                            &format!("Task {} in DOING has completed_at set", task_info.id),
                         )
                         .with_path(&task_info.path.display().to_string())
                         .with_remediation("Task should be moved to DONE if already completed"),
@@ -586,10 +575,7 @@ fn check_bucket_metadata_mismatches(
                         Issue::new(
                             IssueSeverity::Warning,
                             "bucket_mismatch",
-                            &format!(
-                                "Task {} in QA has completed_at set",
-                                task_info.id
-                            ),
+                            &format!("Task {} in QA has completed_at set", task_info.id),
                         )
                         .with_path(&task_info.path.display().to_string())
                         .with_remediation("Task should be moved to DONE if already completed")
@@ -704,8 +690,7 @@ fn apply_repairs(
                             let filename = path.file_name().unwrap().to_string_lossy();
                             let new_path = ctx.bucket_path(target).join(filename.as_ref());
 
-                            // Use atomic rename
-                            if let Err(e) = fs::rename(&path, &new_path) {
+                            if let Err(e) = crate::fs::move_file(&path, &new_path) {
                                 eprintln!(
                                     "Warning: failed to move task '{}' from {} to {}: {}",
                                     fm.id, current, target, e
@@ -772,14 +757,10 @@ fn get_bucket_from_path(path: &Path) -> Option<&'static str> {
 }
 
 /// Commit the repairs to the workflow branch.
-fn commit_repairs(
-    ctx: &crate::context::WorkflowContext,
-    repairs: &[String],
-) -> Result<()> {
+fn commit_repairs(ctx: &crate::context::WorkflowContext, repairs: &[String]) -> Result<()> {
     // Stage all changes in the workflow worktree
-    run_git(&ctx.workflow_worktree, &["add", "."]).map_err(|e| {
-        BurlError::GitError(format!("failed to stage repair changes: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["add", "."])
+        .map_err(|e| BurlError::GitError(format!("failed to stage repair changes: {}", e)))?;
 
     // Check if anything was staged
     let staged = run_git(&ctx.workflow_worktree, &["diff", "--cached", "--name-only"])?;
@@ -795,18 +776,14 @@ fn commit_repairs(
         repair_summary
     );
 
-    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg]).map_err(|e| {
-        BurlError::GitError(format!("failed to commit repairs: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg])
+        .map_err(|e| BurlError::GitError(format!("failed to commit repairs: {}", e)))?;
 
     Ok(())
 }
 
 /// Push the workflow branch to the remote.
-fn push_workflow_branch(
-    ctx: &crate::context::WorkflowContext,
-    config: &Config,
-) -> Result<()> {
+fn push_workflow_branch(ctx: &crate::context::WorkflowContext, config: &Config) -> Result<()> {
     run_git(
         &ctx.workflow_worktree,
         &["push", &config.remote, &config.workflow_branch],
@@ -842,7 +819,10 @@ fn print_report(report: &DoctorReport, repair_mode: bool) {
             }
 
             if let Some(remediation) = &issue.remediation {
-                println!("     Fix:  {}", remediation.lines().next().unwrap_or(remediation));
+                println!(
+                    "     Fix:  {}",
+                    remediation.lines().next().unwrap_or(remediation)
+                );
                 for line in remediation.lines().skip(1) {
                     println!("           {}", line);
                 }
@@ -869,8 +849,16 @@ fn print_report(report: &DoctorReport, repair_mode: bool) {
     }
 
     // Print summary
-    let error_count = report.issues.iter().filter(|i| i.severity == IssueSeverity::Error).count();
-    let warning_count = report.issues.iter().filter(|i| i.severity == IssueSeverity::Warning).count();
+    let error_count = report
+        .issues
+        .iter()
+        .filter(|i| i.severity == IssueSeverity::Error)
+        .count();
+    let warning_count = report
+        .issues
+        .iter()
+        .filter(|i| i.severity == IssueSeverity::Warning)
+        .count();
     let repairable_count = report.issues.iter().filter(|i| i.repairable).count();
 
     if repair_mode {
@@ -901,71 +889,9 @@ mod tests {
     use super::*;
     use crate::commands::init::cmd_init;
     use crate::locks::LockMetadata;
+    use crate::test_support::{DirGuard, create_test_repo};
     use chrono::{Duration, Utc};
     use serial_test::serial;
-    use std::path::PathBuf;
-    use std::process::Command;
-    use tempfile::TempDir;
-
-    /// RAII guard for changing current directory - restores on drop.
-    struct DirGuard {
-        original: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &std::path::Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(new_dir).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
-    }
-
-    /// Create a temporary git repository for testing.
-    fn create_test_repo() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        Command::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Create initial commit
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        temp_dir
-    }
 
     #[test]
     #[serial]
@@ -1122,11 +1048,9 @@ mod tests {
         let mut report = DoctorReport::new();
         assert!(!report.has_issues());
 
-        report.issues.push(Issue::new(
-            IssueSeverity::Warning,
-            "test",
-            "test issue",
-        ));
+        report
+            .issues
+            .push(Issue::new(IssueSeverity::Warning, "test", "test issue"));
         assert!(report.has_issues());
     }
 
@@ -1135,18 +1059,14 @@ mod tests {
         let mut report = DoctorReport::new();
         assert!(!report.has_errors());
 
-        report.issues.push(Issue::new(
-            IssueSeverity::Warning,
-            "test",
-            "warning issue",
-        ));
+        report
+            .issues
+            .push(Issue::new(IssueSeverity::Warning, "test", "warning issue"));
         assert!(!report.has_errors());
 
-        report.issues.push(Issue::new(
-            IssueSeverity::Error,
-            "test",
-            "error issue",
-        ));
+        report
+            .issues
+            .push(Issue::new(IssueSeverity::Error, "test", "error issue"));
         assert!(report.has_errors());
     }
 

@@ -151,10 +151,10 @@ fn atomic_replace(source: &Path, target: &Path) -> Result<()> {
 
     // Optionally sync the parent directory for extra durability
     // This ensures the directory entry is persisted
-    if let Some(parent) = target.parent() {
-        if let Ok(dir) = File::open(parent) {
-            let _ = dir.sync_all();
-        }
+    if let Some(parent) = target.parent()
+        && let Ok(dir) = File::open(parent)
+    {
+        let _ = dir.sync_all();
     }
 
     Ok(())
@@ -339,7 +339,13 @@ Body content.
 
         assert_eq!(temp.parent().unwrap(), Path::new("/some/path"));
         assert!(temp.file_name().unwrap().to_str().unwrap().starts_with('.'));
-        assert!(temp.file_name().unwrap().to_str().unwrap().ends_with(".tmp"));
+        assert!(
+            temp.file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .ends_with(".tmp")
+        );
     }
 
     #[test]

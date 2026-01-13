@@ -83,9 +83,8 @@ impl LockMetadata {
 
     /// Serialize lock metadata to JSON string.
     pub fn to_json(&self) -> Result<String> {
-        serde_json::to_string_pretty(self).map_err(|e| {
-            BurlError::UserError(format!("failed to serialize lock metadata: {}", e))
-        })
+        serde_json::to_string_pretty(self)
+            .map_err(|e| BurlError::UserError(format!("failed to serialize lock metadata: {}", e)))
     }
 
     /// Calculate the age of the lock.
@@ -229,13 +228,14 @@ impl LockGuard {
 impl Drop for LockGuard {
     fn drop(&mut self) {
         if !self.released
-            && let Err(e) = fs::remove_file(&self.path) {
-                eprintln!(
-                    "Warning: failed to release lock '{}': {}",
-                    self.path.display(),
-                    e
-                );
-            }
+            && let Err(e) = fs::remove_file(&self.path)
+        {
+            eprintln!(
+                "Warning: failed to release lock '{}': {}",
+                self.path.display(),
+                e
+            );
+        }
     }
 }
 
@@ -256,15 +256,16 @@ impl Drop for LockGuard {
 fn acquire_lock(lock_path: &Path, metadata: &LockMetadata) -> Result<LockGuard> {
     // Ensure the locks directory exists
     if let Some(parent) = lock_path.parent()
-        && !parent.exists() {
-            fs::create_dir_all(parent).map_err(|e| {
-                BurlError::UserError(format!(
-                    "failed to create locks directory '{}': {}",
-                    parent.display(),
-                    e
-                ))
-            })?;
-        }
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent).map_err(|e| {
+            BurlError::UserError(format!(
+                "failed to create locks directory '{}': {}",
+                parent.display(),
+                e
+            ))
+        })?;
+    }
 
     // Try to create the lock file exclusively
     let mut file = OpenOptions::new()
@@ -284,10 +285,7 @@ fn acquire_lock(lock_path: &Path, metadata: &LockMetadata) -> Result<LockGuard> 
                     ),
                     Err(_) => format!("\nLock: {}", lock_path.display()),
                 };
-                BurlError::LockError(format!(
-                    "lock is held by another process{}",
-                    existing_info
-                ))
+                BurlError::LockError(format!("lock is held by another process{}", existing_info))
             } else {
                 BurlError::LockError(format!(
                     "failed to acquire lock '{}': {}",

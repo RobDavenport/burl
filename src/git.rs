@@ -126,10 +126,7 @@ fn run_git_for_repo_detection<P: AsRef<Path>>(cwd: P, args: &[&str]) -> Result<G
         .args(args)
         .output()
         .map_err(|e| {
-            BurlError::UserError(format!(
-                "failed to execute git: {} (is git installed?)",
-                e
-            ))
+            BurlError::UserError(format!("failed to execute git: {} (is git installed?)", e))
         })?;
 
     let git_output = GitOutput::from_output(&output);
@@ -240,48 +237,8 @@ pub fn ensure_workflow_worktree_clean<P: AsRef<Path>>(workflow_worktree: P) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::create_test_repo;
     use tempfile::TempDir;
-
-    /// Create a temporary git repository for testing.
-    fn create_test_repo() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        Command::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Create initial commit
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        temp_dir
-    }
 
     #[test]
     fn test_run_git_success() {

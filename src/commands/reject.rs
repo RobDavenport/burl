@@ -29,14 +29,13 @@ use crate::cli::RejectArgs;
 use crate::config::Config;
 use crate::context::require_initialized_workflow;
 use crate::error::{BurlError, Result};
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::git::run_git;
 use crate::locks::{acquire_task_lock, acquire_workflow_lock};
 use crate::task::TaskFile;
-use crate::workflow::{validate_task_id, TaskIndex};
+use crate::workflow::{TaskIndex, validate_task_id};
 use chrono::Utc;
 use serde_json::json;
-use std::fs;
 
 /// Get the actor string for event metadata and QA Report.
 fn get_actor_string() -> String {
@@ -170,19 +169,13 @@ pub fn cmd_reject(args: RejectArgs) -> Result<()> {
     task_file.save(&task_info.path)?;
 
     // Move task QA -> destination bucket
-    let filename = task_info.path.file_name().ok_or_else(|| {
-        BurlError::UserError("invalid task file path".to_string())
-    })?;
+    let filename = task_info
+        .path
+        .file_name()
+        .ok_or_else(|| BurlError::UserError("invalid task file path".to_string()))?;
     let destination_path = ctx.bucket_path(destination_bucket).join(filename);
 
-    fs::create_dir_all(ctx.bucket_path(destination_bucket)).map_err(|e| {
-        BurlError::UserError(format!(
-            "failed to create {} directory: {}",
-            destination_bucket, e
-        ))
-    })?;
-
-    fs::rename(&task_info.path, &destination_path).map_err(|e| {
+    crate::fs::move_file(&task_info.path, &destination_path).map_err(|e| {
         BurlError::UserError(format!(
             "failed to move task from QA to {}: {}\n\n\
              Task file: {}\n\
@@ -231,11 +224,17 @@ pub fn cmd_reject(args: RejectArgs) -> Result<()> {
 
     if destination_bucket == "BLOCKED" {
         println!();
-        println!("This task has exceeded the maximum QA attempts ({}).", config.qa_max_attempts);
+        println!(
+            "This task has exceeded the maximum QA attempts ({}).",
+            config.qa_max_attempts
+        );
         println!("It has been moved to BLOCKED and requires manual intervention.");
     } else {
         if config.auto_priority_boost_on_retry {
-            println!("  Priority:    {} (boosted)", task_file.frontmatter.priority);
+            println!(
+                "  Priority:    {} (boosted)",
+                task_file.frontmatter.priority
+            );
         }
         println!();
         println!("The task branch and worktree have been preserved for rework.");
@@ -254,9 +253,8 @@ fn commit_reject(
     reason: &str,
     destination: &str,
 ) -> Result<()> {
-    run_git(&ctx.workflow_worktree, &["add", "."]).map_err(|e| {
-        BurlError::GitError(format!("failed to stage reject changes: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["add", "."])
+        .map_err(|e| BurlError::GitError(format!("failed to stage reject changes: {}", e)))?;
 
     let staged = run_git(&ctx.workflow_worktree, &["diff", "--cached", "--name-only"])?;
     if staged.stdout.is_empty() {
@@ -275,9 +273,8 @@ fn commit_reject(
         task_id, destination, short_reason
     );
 
-    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg]).map_err(|e| {
-        BurlError::GitError(format!("failed to commit reject: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg])
+        .map_err(|e| BurlError::GitError(format!("failed to commit reject: {}", e)))?;
 
     Ok(())
 }
@@ -304,97 +301,11 @@ mod tests {
     use crate::commands::init::cmd_init;
     use crate::commands::submit::cmd_submit;
     use crate::exit_codes;
+    use crate::test_support::{DirGuard, create_test_repo_with_remote};
     use serial_test::serial;
     use std::path::PathBuf;
     use std::process::Command as ProcessCommand;
     use tempfile::TempDir;
-
-    /// RAII guard for changing current directory - restores on drop.
-    struct DirGuard {
-        original: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &std::path::Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(new_dir).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
-    }
-
-    /// Create a temporary git repository for testing with remote.
-    fn create_test_repo_with_remote() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Rename default branch to main
-        let _ = ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["branch", "-M", "main"])
-            .output();
-
-        // Create initial commit
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add second commit
-        std::fs::write(path.join("file2.txt"), "Second file\n").unwrap();
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Second commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add remote pointing to itself (simulates remote for fetch)
-        let path_str = path.to_string_lossy();
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["remote", "add", "origin", &path_str])
-            .output()
-            .expect("failed to add remote");
-
-        temp_dir
-    }
 
     /// Helper to create a task in QA state with valid changes.
     fn setup_task_in_qa(temp_dir: &TempDir) -> PathBuf {
@@ -511,9 +422,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with empty build_command
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\n").unwrap();
 
         // Setup task in QA
@@ -541,9 +450,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with empty build_command
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\n").unwrap();
 
         // Setup task in QA
@@ -571,9 +478,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with empty build_command
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\nqa_max_attempts: 3\n").unwrap();
 
         // Setup task in QA
@@ -600,7 +505,10 @@ mod tests {
         assert!(!qa_path.exists(), "Task should no longer be in QA");
 
         // Verify worktree was preserved
-        assert!(worktree_path.exists(), "Worktree should be preserved for rework");
+        assert!(
+            worktree_path.exists(),
+            "Worktree should be preserved for rework"
+        );
 
         // Verify qa_attempts was incremented
         let task = TaskFile::load(&ready_path).unwrap();
@@ -624,9 +532,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with empty build_command and high max attempts
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\nqa_max_attempts: 5\n").unwrap();
 
         // Setup task in QA
@@ -696,9 +602,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with low max attempts (1)
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\nqa_max_attempts: 1\n").unwrap();
 
         // Setup task in QA
@@ -745,9 +649,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with auto_priority_boost_on_retry enabled (default)
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(
             &config_path,
             "build_command: \"\"\nqa_max_attempts: 3\nauto_priority_boost_on_retry: true\n",
@@ -789,9 +691,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\n").unwrap();
 
         // Setup task in QA
@@ -834,9 +734,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\n").unwrap();
 
         // Setup task in QA
@@ -856,9 +754,18 @@ mod tests {
             .join(".burl/.workflow/READY/TASK-001-test-reject.md");
         let task = TaskFile::load(&ready_path).unwrap();
 
-        assert!(task.body.contains("QA Report"), "Should have QA Report section");
-        assert!(task.body.contains("Rejection:"), "Should have Rejection header");
-        assert!(task.body.contains(rejection_reason), "Should contain rejection reason");
+        assert!(
+            task.body.contains("QA Report"),
+            "Should have QA Report section"
+        );
+        assert!(
+            task.body.contains("Rejection:"),
+            "Should have Rejection header"
+        );
+        assert!(
+            task.body.contains(rejection_reason),
+            "Should contain rejection reason"
+        );
         assert!(task.body.contains("Actor:"), "Should have Actor field");
         assert!(task.body.contains("Attempt:"), "Should have Attempt field");
     }

@@ -1,9 +1,13 @@
 # PRD — Burl: Minimal File‑Driven eXecution Orchestrator (`burl`)
 
-**Document status:** Draft (implementation-ready)  
+**Document status:** Active (V1 implemented; spec is source of truth)  
 **Last updated:** 2026-01-13  
 **Owner:** (you)  
 **Target platform:** Local developer machines (Windows/macOS/Linux), Git repository required
+
+Quick links:
+- `README.md` — quick start + repo overview
+- `ROADMAP.md` — current vs future features
 
 ---
 
@@ -310,10 +314,11 @@ This section defines **the safety model**. Without these guarantees, the workflo
 
 ### 10.1 Atomic filesystem operations
 
-**Requirement A1 — Same filesystem for atomic renames**
-- Folder transitions and atomic writes rely on `rename()` semantics.
-- The canonical workflow state directory (default: `.burl/.workflow/`) must be on a single filesystem/volume.
-- Task moves MUST be implemented as `fs::rename(src, dst)` (not copy+delete).
+**Requirement A1 — Prefer atomic renames (same filesystem)**
+- Folder transitions and atomic writes rely on `rename()` semantics when possible.
+- The canonical workflow state directory (default: `.burl/.workflow/`) should live on a single filesystem/volume for atomicity.
+- Task moves MUST attempt `fs::rename(src, dst)` first (atomic on a single filesystem).
+- If `rename` fails with `EXDEV` (“Invalid cross-device link”), fall back to a copy+delete move (non-atomic) and treat it as degraded safety: a crash mid-move can temporarily duplicate bucket state; `burl doctor --repair` can reconcile it.
 
 **Requirement A2 — Atomic task file updates**
 - Update task files via: write to temp file in same directory → `rename()` over original.
@@ -387,15 +392,15 @@ Each command that mutates state is a transaction:
 
 **Assumptions**
 - The canonical workflow worktree exists (default path `.burl/`) and all `burl` commands resolve and operate on its `.workflow/` directory.
-- Workflow state (`.burl/.workflow/**`) and local task worktrees (`.worktrees/**`) live on the **same filesystem/volume** (so rename/replace is atomic, and worktree paths are stable).
+- Workflow state (`.burl/.workflow/**`) and local task worktrees (`.worktrees/**`) ideally live on the **same filesystem/volume** (so rename/replace is atomic, and worktree paths are stable).
 - All workflow state mutations happen through `burl` commands (no manual folder shuffling mid-operation).
 - Locks are implemented with **create_new** semantics and respected by all actors (agents/humans).
 
-**Guarantees (under the assumptions)**
+**Guarantees (under the assumptions, and when atomic renames succeed)**
 - **At-most-one mutator per task:** per-task lock files ensure only one process can claim/submit/validate/approve/reject a given task at a time.
 - **No split-brain workflow state:** all workflow reads/writes target the canonical workflow worktree (`.burl/.workflow/**` by default), so multiple task worktrees never diverge on bucket state.
 - **No partial task-file writes:** task metadata updates use atomic replace (temp + rename), so frontmatter is never half-written.
-- **Bucket state is never duplicated:** bucket moves use atomic rename, so a task cannot exist in two buckets simultaneously.
+- **Bucket state is never duplicated:** bucket moves use atomic rename, so a task cannot exist in two buckets simultaneously (except in degraded EXDEV fallback scenarios or manual edits).
 - **Atomic dispatch (claim) is deterministic:** either a task ends up in DOING with recorded `base_sha` + branch/worktree, or it remains in READY; double-claim is prevented.
 - **Merges are conservative:** default `rebase_ff_only` + `git merge --ff-only` prevents accidental merge commits or “best-effort” merges.
 
@@ -415,8 +420,8 @@ Common recoverable failures:
   - Recovery: `burl doctor` identifies orphan artifacts; `burl clean` or targeted cleanup removes them.
 - **Crash after metadata write but before bucket move:** task remains in the old bucket with new metadata.
   - Recovery: `burl doctor --repair` can reconcile folder status with metadata (policy-driven, no destructive changes without flags).
-- **Cross-filesystem rename/replace failure:** atomic rename may not work if directories are on different volumes.
-  - Recovery: treat as configuration error; move `.burl/` / `.worktrees/` onto the same filesystem.
+- **Cross-filesystem rename/replace failure:** atomic rename may not work if directories are on different volumes (or on some mounts).
+  - Recovery: move `.burl/` / `.worktrees/` onto the same filesystem for full atomicity. If you ran with degraded copy+delete moves, run `burl doctor --repair` to reconcile any duplicated bucket state.
 
 Recommended recovery command (V1):
 - `burl doctor` (read-only): report inconsistencies, stale locks, orphan worktrees/branches, missing `base_sha`, bucket/metadata mismatches.

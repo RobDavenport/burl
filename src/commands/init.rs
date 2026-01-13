@@ -15,9 +15,9 @@
 //! 8. Commits the scaffolding to the workflow branch (if `workflow_auto_commit` is true)
 
 use crate::config::Config;
-use crate::context::{resolve_context, WorkflowContext, DEFAULT_WORKFLOW_BRANCH};
+use crate::context::{DEFAULT_WORKFLOW_BRANCH, WorkflowContext, resolve_context};
 use crate::error::{BurlError, Result};
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::fs::atomic_write_file;
 use crate::git::run_git;
 use crate::locks;
@@ -124,11 +124,7 @@ fn validate_existing_workflow_dir(ctx: &WorkflowContext) -> Result<()> {
     if git_path.is_file() {
         // It's a worktree - check if it points to the same repo
         let git_content = fs::read_to_string(&git_path).map_err(|e| {
-            BurlError::UserError(format!(
-                "failed to read '{}': {}",
-                git_path.display(),
-                e
-            ))
+            BurlError::UserError(format!("failed to read '{}': {}", git_path.display(), e))
         })?;
 
         if !git_content.starts_with("gitdir:") {
@@ -158,7 +154,10 @@ fn validate_existing_workflow_dir(ctx: &WorkflowContext) -> Result<()> {
 
 /// Verify that the existing workflow worktree is checked out to the workflow branch.
 fn verify_worktree_branch(ctx: &WorkflowContext) -> Result<()> {
-    let output = run_git(&ctx.workflow_worktree, &["rev-parse", "--abbrev-ref", "HEAD"])?;
+    let output = run_git(
+        &ctx.workflow_worktree,
+        &["rev-parse", "--abbrev-ref", "HEAD"],
+    )?;
     let current_branch = output.stdout.trim();
 
     if current_branch != DEFAULT_WORKFLOW_BRANCH {
@@ -195,8 +194,14 @@ fn ensure_workflow_worktree(ctx: &WorkflowContext) -> Result<bool> {
         // Branch exists - attach worktree to existing branch
         run_git(
             &ctx.repo_root,
-            &["worktree", "add", workflow_path.to_str().unwrap(), DEFAULT_WORKFLOW_BRANCH],
-        ).map_err(|e| {
+            &[
+                "worktree",
+                "add",
+                workflow_path.to_str().unwrap(),
+                DEFAULT_WORKFLOW_BRANCH,
+            ],
+        )
+        .map_err(|e| {
             BurlError::GitError(format!(
                 "failed to create worktree at '{}': {}\n\n\
                  Try manually: git worktree add {} {}",
@@ -221,7 +226,8 @@ fn ensure_workflow_worktree(ctx: &WorkflowContext) -> Result<bool> {
                 workflow_path.to_str().unwrap(),
                 &base_branch,
             ],
-        ).map_err(|e| {
+        )
+        .map_err(|e| {
             BurlError::GitError(format!(
                 "failed to create worktree with new branch at '{}': {}\n\n\
                  Try manually: git worktree add -b {} {} {}",
@@ -302,7 +308,10 @@ fn create_workflow_structure(ctx: &WorkflowContext) -> Result<()> {
     // Create .gitignore in .workflow to ignore locks/
     let gitignore_path = ctx.workflow_state_dir.join(".gitignore");
     if !gitignore_path.exists() {
-        atomic_write_file(&gitignore_path, "# Local lock files (machine-specific, never commit)\nlocks/\n")?;
+        atomic_write_file(
+            &gitignore_path,
+            "# Local lock files (machine-specific, never commit)\nlocks/\n",
+        )?;
     }
 
     Ok(())
@@ -348,10 +357,7 @@ fn add_to_git_exclude(ctx: &WorkflowContext) -> Result<()> {
     // Ensure the info directory exists
     if let Some(parent) = exclude_path.parent() {
         fs::create_dir_all(parent).map_err(|e| {
-            BurlError::UserError(format!(
-                "failed to create git info directory: {}",
-                e
-            ))
+            BurlError::UserError(format!("failed to create git info directory: {}", e))
         })?;
     }
 
@@ -365,7 +371,10 @@ fn add_to_git_exclude(ctx: &WorkflowContext) -> Result<()> {
         entries_to_add.push(".burl/");
     }
 
-    if !existing_content.lines().any(|line| line.trim() == ".worktrees/") {
+    if !existing_content
+        .lines()
+        .any(|line| line.trim() == ".worktrees/")
+    {
         entries_to_add.push(".worktrees/");
     }
 
@@ -440,7 +449,8 @@ fn push_workflow_branch(ctx: &WorkflowContext, config: &Config) -> Result<()> {
     run_git(
         &ctx.workflow_worktree,
         &["push", "-u", &config.remote, DEFAULT_WORKFLOW_BRANCH],
-    ).map_err(|e| {
+    )
+    .map_err(|e| {
         BurlError::GitError(format!(
             "failed to push workflow branch: {}\n\n\
              You can push manually with:\n\
@@ -458,51 +468,8 @@ fn push_workflow_branch(ctx: &WorkflowContext, config: &Config) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::{DirGuard, create_test_repo};
     use serial_test::serial;
-    use std::path::PathBuf;
-    use std::process::Command;
-    use tempfile::TempDir;
-
-    /// Create a temporary git repository for testing.
-    fn create_test_repo() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        Command::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Create initial commit (required for worktree creation)
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        temp_dir
-    }
 
     #[test]
     fn test_check_branch_exists() {
@@ -578,7 +545,11 @@ mod tests {
         for bucket in BUCKETS {
             let bucket_path = ctx.bucket_path(bucket);
             assert!(bucket_path.exists(), "Bucket {} should exist", bucket);
-            assert!(bucket_path.join(".gitkeep").exists(), "Bucket {} should have .gitkeep", bucket);
+            assert!(
+                bucket_path.join(".gitkeep").exists(),
+                "Bucket {} should have .gitkeep",
+                bucket
+            );
         }
 
         // Verify events directory
@@ -654,7 +625,10 @@ mod tests {
         // Idempotent - second call should not duplicate entries
         add_to_git_exclude(&ctx).unwrap();
         let content2 = std::fs::read_to_string(&exclude_path).unwrap();
-        assert_eq!(content.matches(".burl/").count(), content2.matches(".burl/").count());
+        assert_eq!(
+            content.matches(".burl/").count(),
+            content2.matches(".burl/").count()
+        );
     }
 
     #[test]
@@ -729,25 +703,6 @@ mod tests {
         // Commit count should be the same
         let log2 = run_git(&ctx.workflow_worktree, &["rev-list", "--count", "HEAD"]).unwrap();
         assert_eq!(log1.stdout, log2.stdout);
-    }
-
-    /// RAII guard for changing current directory - restores on drop.
-    struct DirGuard {
-        original: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &std::path::Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(new_dir).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
     }
 
     #[test]

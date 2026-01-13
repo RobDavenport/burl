@@ -274,9 +274,8 @@ impl Config {
     ///
     /// Unknown fields in the YAML are silently ignored for forward compatibility.
     pub fn from_yaml(yaml: &str) -> Result<Self> {
-        let config: Config = serde_yaml::from_str(yaml).map_err(|e| {
-            BurlError::UserError(format!("failed to parse config YAML: {}", e))
-        })?;
+        let config: Config = serde_yaml::from_str(yaml)
+            .map_err(|e| BurlError::UserError(format!("failed to parse config YAML: {}", e)))?;
 
         config.validate()?;
         Ok(config)
@@ -284,9 +283,8 @@ impl Config {
 
     /// Serialize config to YAML string.
     pub fn to_yaml(&self) -> Result<String> {
-        serde_yaml::to_string(self).map_err(|e| {
-            BurlError::UserError(format!("failed to serialize config to YAML: {}", e))
-        })
+        serde_yaml::to_string(self)
+            .map_err(|e| BurlError::UserError(format!("failed to serialize config to YAML: {}", e)))
     }
 
     /// Validate config values and return error on invalid values.
@@ -565,14 +563,8 @@ stub_check_extensions:
 
     #[test]
     fn test_conflict_policy_from_str() {
-        assert_eq!(
-            ConflictPolicy::from_str("fail"),
-            Some(ConflictPolicy::Fail)
-        );
-        assert_eq!(
-            ConflictPolicy::from_str("warn"),
-            Some(ConflictPolicy::Warn)
-        );
+        assert_eq!(ConflictPolicy::from_str("fail"), Some(ConflictPolicy::Fail));
+        assert_eq!(ConflictPolicy::from_str("warn"), Some(ConflictPolicy::Warn));
         assert_eq!(
             ConflictPolicy::from_str("ignore"),
             Some(ConflictPolicy::Ignore)
@@ -607,8 +599,8 @@ stub_check_extensions:
 
     #[test]
     fn test_config_load_from_file() {
-        use tempfile::NamedTempFile;
         use std::io::Write;
+        use tempfile::NamedTempFile;
 
         let mut file = NamedTempFile::new().unwrap();
         writeln!(file, "max_parallel: 7").unwrap();

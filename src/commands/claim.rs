@@ -25,15 +25,14 @@ use crate::cli::ClaimArgs;
 use crate::config::{Config, ConflictPolicy};
 use crate::context::require_initialized_workflow;
 use crate::error::{BurlError, Result};
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::git::run_git;
-use crate::git_worktree::{branch_exists, delete_branch, setup_task_worktree, WorktreeInfo};
-use crate::locks::{acquire_claim_lock, acquire_task_lock, acquire_workflow_lock, LockGuard};
+use crate::git_worktree::{WorktreeInfo, branch_exists, delete_branch, setup_task_worktree};
+use crate::locks::{LockGuard, acquire_claim_lock, acquire_task_lock, acquire_workflow_lock};
 use crate::task::TaskFile;
-use crate::workflow::{slugify_title, validate_task_id, TaskIndex, TaskInfo};
+use crate::workflow::{TaskIndex, TaskInfo, slugify_title, validate_task_id};
 use chrono::Utc;
 use serde_json::json;
-use std::fs;
 use std::path::PathBuf;
 
 /// Priority ordering for task selection (high > medium > low > none/other)
@@ -430,8 +429,7 @@ pub fn cmd_claim(args: ClaimArgs) -> Result<()> {
             // Check if worktree exists
             if worktree_path.exists() {
                 // Verify it's on the correct branch
-                if let Ok(current_branch) =
-                    crate::git_worktree::get_current_branch(&worktree_path)
+                if let Ok(current_branch) = crate::git_worktree::get_current_branch(&worktree_path)
                     && current_branch != branch
                 {
                     return Err(BurlError::UserError(format!(
@@ -464,12 +462,11 @@ pub fn cmd_claim(args: ClaimArgs) -> Result<()> {
     let mut transaction = ClaimTransaction::new();
 
     // Check if branch already existed before setup
-    let branch_existed_before =
-        if let Some(branch) = existing_branch {
-            branch_exists(&ctx.repo_root, branch)?
-        } else {
-            false
-        };
+    let branch_existed_before = if let Some(branch) = existing_branch {
+        branch_exists(&ctx.repo_root, branch)?
+    } else {
+        false
+    };
 
     // Setup task worktree (handles fetch, base_sha, branch, worktree creation)
     let slug = slugify_title(&task_file.frontmatter.title);
@@ -551,17 +548,8 @@ pub fn cmd_claim(args: ClaimArgs) -> Result<()> {
     };
     let doing_path = ctx.bucket_path("DOING").join(filename);
 
-    // Ensure DOING directory exists
-    if let Err(e) = fs::create_dir_all(ctx.bucket_path("DOING")) {
-        transaction.rollback(&ctx.repo_root);
-        return Err(BurlError::UserError(format!(
-            "failed to create DOING directory: {}",
-            e
-        )));
-    }
-
-    // Atomic move
-    if let Err(e) = fs::rename(&task_info.path, &doing_path) {
+    // Move task file into DOING.
+    if let Err(e) = crate::fs::move_file(&task_info.path, &doing_path) {
         transaction.rollback(&ctx.repo_root);
         return Err(BurlError::UserError(format!(
             "failed to move task from READY to DOING: {}\n\n\
@@ -639,15 +627,10 @@ fn get_assignee_string() -> String {
 }
 
 /// Commit the claim to the workflow branch.
-fn commit_claim(
-    ctx: &crate::context::WorkflowContext,
-    task_id: &str,
-    title: &str,
-) -> Result<()> {
+fn commit_claim(ctx: &crate::context::WorkflowContext, task_id: &str, title: &str) -> Result<()> {
     // Stage all changes in the workflow worktree
-    run_git(&ctx.workflow_worktree, &["add", "."]).map_err(|e| {
-        BurlError::GitError(format!("failed to stage claim changes: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["add", "."])
+        .map_err(|e| BurlError::GitError(format!("failed to stage claim changes: {}", e)))?;
 
     // Check if anything was staged
     let staged = run_git(&ctx.workflow_worktree, &["diff", "--cached", "--name-only"])?;
@@ -658,9 +641,8 @@ fn commit_claim(
     // Create commit message
     let commit_msg = format!("Claim task {}: {}", task_id, title);
 
-    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg]).map_err(|e| {
-        BurlError::GitError(format!("failed to commit claim: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg])
+        .map_err(|e| BurlError::GitError(format!("failed to commit claim: {}", e)))?;
 
     Ok(())
 }
@@ -679,100 +661,11 @@ fn push_workflow_branch(ctx: &crate::context::WorkflowContext, config: &Config) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::init::cmd_init;
-    use crate::commands::add::cmd_add;
     use crate::cli::AddArgs;
+    use crate::commands::add::cmd_add;
+    use crate::commands::init::cmd_init;
+    use crate::test_support::{DirGuard, create_test_repo_with_remote};
     use serial_test::serial;
-    use std::path::PathBuf;
-    use std::process::Command;
-    use tempfile::TempDir;
-
-    /// RAII guard for changing current directory - restores on drop.
-    struct DirGuard {
-        original: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &std::path::Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(new_dir).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
-    }
-
-    /// Create a temporary git repository for testing with remote.
-    fn create_test_repo_with_remote() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        Command::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Rename default branch to main
-        let _ = Command::new("git")
-            .current_dir(path)
-            .args(["branch", "-M", "main"])
-            .output();
-
-        // Create initial commit
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add second commit
-        std::fs::write(path.join("file2.txt"), "Second file\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Second commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add remote pointing to itself (simulates remote for fetch)
-        let path_str = path.to_string_lossy();
-        Command::new("git")
-            .current_dir(path)
-            .args(["remote", "add", "origin", &path_str])
-            .output()
-            .expect("failed to add remote");
-
-        temp_dir
-    }
 
     #[test]
     fn test_priority_rank() {
@@ -989,10 +882,7 @@ mod tests {
         });
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("not in READY"));
+        assert!(result.unwrap_err().to_string().contains("not in READY"));
     }
 
     #[test]
@@ -1022,10 +912,12 @@ mod tests {
         });
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("dependencies not satisfied"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("dependencies not satisfied")
+        );
     }
 
     #[test]

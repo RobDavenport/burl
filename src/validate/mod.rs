@@ -8,10 +8,8 @@
 pub mod scope;
 pub mod stubs;
 
-pub use scope::{
-    validate_scope, ScopeValidationResult, ScopeViolation, ScopeViolationType,
-};
+pub use scope::{ScopeValidationResult, ScopeViolation, ScopeViolationType, validate_scope};
 pub use stubs::{
-    validate_stubs, validate_stubs_with_config, CompiledStubPatterns, StubValidationResult,
-    StubViolation,
+    CompiledStubPatterns, StubValidationResult, StubViolation, validate_stubs,
+    validate_stubs_with_config,
 };

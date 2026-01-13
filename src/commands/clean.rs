@@ -22,7 +22,7 @@ use crate::cli::CleanArgs;
 use crate::config::Config;
 use crate::context::require_initialized_workflow;
 use crate::error::{BurlError, Result};
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::git::run_git;
 use crate::git_worktree::{list_worktrees, remove_worktree};
 use crate::locks::acquire_workflow_lock;
@@ -156,7 +156,9 @@ fn build_cleanup_plan(
             let full_path = normalize_worktree_path(&ctx.repo_root, worktree_path);
 
             // Normalize for comparison
-            let canonical = full_path.canonicalize().unwrap_or_else(|_| full_path.clone());
+            let canonical = full_path
+                .canonicalize()
+                .unwrap_or_else(|_| full_path.clone());
             referenced_paths.insert(canonical.clone());
             referenced_paths.insert(full_path.clone());
 
@@ -354,7 +356,10 @@ fn execute_cleanup(
     for candidate in &plan.completed_worktrees {
         match remove_worktree_safe(&ctx.repo_root, &candidate.path) {
             Ok(()) => {
-                println!("Removed: {}", make_relative(&candidate.path, &ctx.repo_root));
+                println!(
+                    "Removed: {}",
+                    make_relative(&candidate.path, &ctx.repo_root)
+                );
                 result.removed_count += 1;
             }
             Err(e) => {
@@ -368,7 +373,10 @@ fn execute_cleanup(
     for candidate in &plan.orphan_worktrees {
         match remove_worktree_safe(&ctx.repo_root, &candidate.path) {
             Ok(()) => {
-                println!("Removed: {}", make_relative(&candidate.path, &ctx.repo_root));
+                println!(
+                    "Removed: {}",
+                    make_relative(&candidate.path, &ctx.repo_root)
+                );
                 result.removed_count += 1;
             }
             Err(e) => {
@@ -438,7 +446,11 @@ fn remove_directory_safe(path: &Path, worktrees_dir: &Path) -> Result<()> {
 
     // Remove the directory
     fs::remove_dir_all(path).map_err(|e| {
-        BurlError::UserError(format!("failed to remove directory '{}': {}", path.display(), e))
+        BurlError::UserError(format!(
+            "failed to remove directory '{}': {}",
+            path.display(),
+            e
+        ))
     })?;
 
     Ok(())
@@ -448,7 +460,9 @@ fn remove_directory_safe(path: &Path, worktrees_dir: &Path) -> Result<()> {
 fn is_path_under(path: &Path, parent: &Path) -> bool {
     // Canonicalize both for accurate comparison
     let path_canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    let parent_canonical = parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf());
+    let parent_canonical = parent
+        .canonicalize()
+        .unwrap_or_else(|_| parent.to_path_buf());
 
     path_canonical.starts_with(&parent_canonical)
 }
@@ -487,14 +501,10 @@ fn log_clean_event(
 }
 
 /// Commit the clean operation to the workflow branch.
-fn commit_clean(
-    ctx: &crate::context::WorkflowContext,
-    result: &CleanupResult,
-) -> Result<()> {
+fn commit_clean(ctx: &crate::context::WorkflowContext, result: &CleanupResult) -> Result<()> {
     // Stage all changes in the workflow worktree
-    run_git(&ctx.workflow_worktree, &["add", "."]).map_err(|e| {
-        BurlError::GitError(format!("failed to stage clean changes: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["add", "."])
+        .map_err(|e| BurlError::GitError(format!("failed to stage clean changes: {}", e)))?;
 
     // Check if anything was staged
     let staged = run_git(&ctx.workflow_worktree, &["diff", "--cached", "--name-only"])?;
@@ -503,23 +513,16 @@ fn commit_clean(
     }
 
     // Create commit message
-    let commit_msg = format!(
-        "burl clean: removed {} worktree(s)",
-        result.removed_count
-    );
+    let commit_msg = format!("burl clean: removed {} worktree(s)", result.removed_count);
 
-    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg]).map_err(|e| {
-        BurlError::GitError(format!("failed to commit clean: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg])
+        .map_err(|e| BurlError::GitError(format!("failed to commit clean: {}", e)))?;
 
     Ok(())
 }
 
 /// Push the workflow branch to the remote.
-fn push_workflow_branch(
-    ctx: &crate::context::WorkflowContext,
-    config: &Config,
-) -> Result<()> {
+fn push_workflow_branch(ctx: &crate::context::WorkflowContext, config: &Config) -> Result<()> {
     run_git(
         &ctx.workflow_worktree,
         &["push", &config.remote, &config.workflow_branch],
@@ -533,75 +536,8 @@ fn push_workflow_branch(
 mod tests {
     use super::*;
     use crate::commands::init::cmd_init;
+    use crate::test_support::{DirGuard, create_test_repo};
     use serial_test::serial;
-    use std::process::Command;
-    use tempfile::TempDir;
-
-    /// RAII guard for changing current directory - restores on drop.
-    struct DirGuard {
-        original: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(new_dir).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
-    }
-
-    /// Create a temporary git repository for testing.
-    fn create_test_repo() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        Command::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Rename default branch to main
-        let _ = Command::new("git")
-            .current_dir(path)
-            .args(["branch", "-M", "main"])
-            .output();
-
-        // Create initial commit
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        temp_dir
-    }
 
     #[test]
     fn test_path_contains_traversal() {

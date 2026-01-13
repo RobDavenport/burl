@@ -26,16 +26,15 @@ use crate::config::{Config, MergeStrategy};
 use crate::context::require_initialized_workflow;
 use crate::diff::{added_lines, changed_files};
 use crate::error::{BurlError, Result};
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::git::run_git;
 use crate::git_worktree::{cleanup_task_worktree, get_current_branch};
 use crate::locks::{acquire_task_lock, acquire_workflow_lock};
 use crate::task::TaskFile;
 use crate::validate::{validate_scope, validate_stubs_with_config};
-use crate::workflow::{validate_task_id, TaskIndex};
+use crate::workflow::{TaskIndex, validate_task_id};
 use chrono::Utc;
 use serde_json::json;
-use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -176,8 +175,10 @@ pub fn cmd_approve(args: ApproveArgs) -> Result<()> {
             "task worktree is on branch '{}', but task expects branch '{}'.\n\n\
              Remediation: checkout the correct branch with:\n\
              cd {} && git checkout {}",
-            current_branch, expected_branch,
-            worktree_path.display(), expected_branch
+            current_branch,
+            expected_branch,
+            worktree_path.display(),
+            expected_branch
         )));
     }
 
@@ -186,28 +187,24 @@ pub fn cmd_approve(args: ApproveArgs) -> Result<()> {
     // ========================================================================
 
     match config.merge_strategy {
-        MergeStrategy::RebaseFfOnly => {
-            approve_rebase_ff_only(
-                &ctx,
-                &config,
-                &task_info.id,
-                &task_info.path,
-                &mut task_file,
-                &worktree_path,
-                &expected_branch,
-            )
-        }
-        MergeStrategy::FfOnly => {
-            approve_ff_only(
-                &ctx,
-                &config,
-                &task_info.id,
-                &task_info.path,
-                &mut task_file,
-                &worktree_path,
-                &expected_branch,
-            )
-        }
+        MergeStrategy::RebaseFfOnly => approve_rebase_ff_only(
+            &ctx,
+            &config,
+            &task_info.id,
+            &task_info.path,
+            &mut task_file,
+            &worktree_path,
+            &expected_branch,
+        ),
+        MergeStrategy::FfOnly => approve_ff_only(
+            &ctx,
+            &config,
+            &task_info.id,
+            &task_info.path,
+            &mut task_file,
+            &worktree_path,
+            &expected_branch,
+        ),
         MergeStrategy::Manual => Err(BurlError::UserError(
             "merge_strategy 'manual' is not implemented in V1.\n\n\
              Use 'rebase_ff_only' (default) or 'ff_only' instead, or perform the merge manually."
@@ -230,7 +227,11 @@ fn approve_rebase_ff_only(
 
     // Step 1: Fetch origin/main
     println!("Fetching {}/{}...", config.remote, config.main_branch);
-    run_git(&ctx.repo_root, &["fetch", &config.remote, &config.main_branch]).map_err(|e| {
+    run_git(
+        &ctx.repo_root,
+        &["fetch", &config.remote, &config.main_branch],
+    )
+    .map_err(|e| {
         BurlError::GitError(format!(
             "failed to fetch {}/{}: {}",
             config.remote, config.main_branch, e
@@ -314,7 +315,10 @@ fn approve_rebase_ff_only(
         println!("  Cleanup:   Complete");
     }
     if config.push_main_on_approve {
-        println!("  Pushed:    {} -> {}/{}", config.main_branch, config.remote, config.main_branch);
+        println!(
+            "  Pushed:    {} -> {}/{}",
+            config.main_branch, config.remote, config.main_branch
+        );
     }
 
     Ok(())
@@ -334,7 +338,11 @@ fn approve_ff_only(
 
     // Step 1: Fetch origin/main
     println!("Fetching {}/{}...", config.remote, config.main_branch);
-    run_git(&ctx.repo_root, &["fetch", &config.remote, &config.main_branch]).map_err(|e| {
+    run_git(
+        &ctx.repo_root,
+        &["fetch", &config.remote, &config.main_branch],
+    )
+    .map_err(|e| {
         BurlError::GitError(format!(
             "failed to fetch {}/{}: {}",
             config.remote, config.main_branch, e
@@ -381,7 +389,11 @@ fn approve_ff_only(
     // This is recommended to ensure we have the latest main
     let _ = run_git(
         &ctx.repo_root,
-        &["fetch", &config.remote, &format!("{}:{}", config.main_branch, config.main_branch)],
+        &[
+            "fetch",
+            &config.remote,
+            &format!("{}:{}", config.main_branch, config.main_branch),
+        ],
     );
 
     // Step 5: Merge into local main using --ff-only
@@ -396,12 +408,8 @@ fn approve_ff_only(
 
     // Step 7: Cleanup worktree and branch (best-effort)
     println!("Cleaning up worktree and branch...");
-    let cleanup_result = cleanup_task_worktree(
-        &ctx.repo_root,
-        branch,
-        Some(worktree_path.as_path()),
-        true,
-    );
+    let cleanup_result =
+        cleanup_task_worktree(&ctx.repo_root, branch, Some(worktree_path.as_path()), true);
 
     let cleanup_failed = cleanup_result.is_err();
     if let Err(e) = &cleanup_result {
@@ -423,7 +431,10 @@ fn approve_ff_only(
         println!("  Cleanup:   Complete");
     }
     if config.push_main_on_approve {
-        println!("  Pushed:    {} -> {}/{}", config.main_branch, config.remote, config.main_branch);
+        println!(
+            "  Pushed:    {} -> {}/{}",
+            config.main_branch, config.remote, config.main_branch
+        );
     }
 
     Ok(())
@@ -482,7 +493,10 @@ fn run_validation(
         }
     }
 
-    Ok(ValidationResult { all_passed, results })
+    Ok(ValidationResult {
+        all_passed,
+        results,
+    })
 }
 
 /// Parse and run the build command in the given worktree directory.
@@ -603,10 +617,7 @@ fn merge_ff_only(
 ) -> Result<()> {
     // Checkout main in the repo root
     run_git(&ctx.repo_root, &["checkout", &config.main_branch]).map_err(|e| {
-        BurlError::GitError(format!(
-            "failed to checkout {}: {}",
-            config.main_branch, e
-        ))
+        BurlError::GitError(format!("failed to checkout {}: {}", config.main_branch, e))
     })?;
 
     // Attempt fast-forward merge
@@ -629,13 +640,16 @@ fn merge_ff_only(
 
 /// Push main to remote.
 fn push_main(ctx: &crate::context::WorkflowContext, config: &Config) -> Result<()> {
-    run_git(&ctx.repo_root, &["push", &config.remote, &config.main_branch]).map_err(|e| {
+    run_git(
+        &ctx.repo_root,
+        &["push", &config.remote, &config.main_branch],
+    )
+    .map_err(|e| {
         BurlError::GitError(format!(
             "failed to push {} to {}: {}\n\n\
              The merge was successful locally. You can push manually with:\n\
              git push {} {}",
-            config.main_branch, config.remote, e,
-            config.remote, config.main_branch
+            config.main_branch, config.remote, e, config.remote, config.main_branch
         ))
     })?;
     Ok(())
@@ -682,16 +696,12 @@ fn reject_task(
     task_file.save(task_path)?;
 
     // Move task QA -> READY
-    let filename = task_path.file_name().ok_or_else(|| {
-        BurlError::UserError("invalid task file path".to_string())
-    })?;
+    let filename = task_path
+        .file_name()
+        .ok_or_else(|| BurlError::UserError("invalid task file path".to_string()))?;
     let ready_path = ctx.bucket_path("READY").join(filename);
 
-    fs::create_dir_all(ctx.bucket_path("READY")).map_err(|e| {
-        BurlError::UserError(format!("failed to create READY directory: {}", e))
-    })?;
-
-    fs::rename(task_path, &ready_path).map_err(|e| {
+    crate::fs::move_file(task_path, &ready_path).map_err(|e| {
         BurlError::UserError(format!(
             "failed to move task from QA to READY: {}\n\n\
              Task file: {}\n\
@@ -769,16 +779,12 @@ fn complete_approval(
     task_file.save(task_path)?;
 
     // Move task QA -> DONE
-    let filename = task_path.file_name().ok_or_else(|| {
-        BurlError::UserError("invalid task file path".to_string())
-    })?;
+    let filename = task_path
+        .file_name()
+        .ok_or_else(|| BurlError::UserError("invalid task file path".to_string()))?;
     let done_path = ctx.bucket_path("DONE").join(filename);
 
-    fs::create_dir_all(ctx.bucket_path("DONE")).map_err(|e| {
-        BurlError::UserError(format!("failed to create DONE directory: {}", e))
-    })?;
-
-    fs::rename(task_path, &done_path).map_err(|e| {
+    crate::fs::move_file(task_path, &done_path).map_err(|e| {
         BurlError::UserError(format!(
             "failed to move task from QA to DONE: {}\n\n\
              Task file: {}\n\
@@ -812,14 +818,9 @@ fn complete_approval(
 }
 
 /// Commit the approval to the workflow branch.
-fn commit_approve(
-    ctx: &crate::context::WorkflowContext,
-    task_id: &str,
-    title: &str,
-) -> Result<()> {
-    run_git(&ctx.workflow_worktree, &["add", "."]).map_err(|e| {
-        BurlError::GitError(format!("failed to stage approve changes: {}", e))
-    })?;
+fn commit_approve(ctx: &crate::context::WorkflowContext, task_id: &str, title: &str) -> Result<()> {
+    run_git(&ctx.workflow_worktree, &["add", "."])
+        .map_err(|e| BurlError::GitError(format!("failed to stage approve changes: {}", e)))?;
 
     let staged = run_git(&ctx.workflow_worktree, &["diff", "--cached", "--name-only"])?;
     if staged.stdout.is_empty() {
@@ -828,22 +829,16 @@ fn commit_approve(
 
     let commit_msg = format!("Approve task {}: {}", task_id, title);
 
-    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg]).map_err(|e| {
-        BurlError::GitError(format!("failed to commit approve: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg])
+        .map_err(|e| BurlError::GitError(format!("failed to commit approve: {}", e)))?;
 
     Ok(())
 }
 
 /// Commit the rejection to the workflow branch.
-fn commit_reject(
-    ctx: &crate::context::WorkflowContext,
-    task_id: &str,
-    reason: &str,
-) -> Result<()> {
-    run_git(&ctx.workflow_worktree, &["add", "."]).map_err(|e| {
-        BurlError::GitError(format!("failed to stage reject changes: {}", e))
-    })?;
+fn commit_reject(ctx: &crate::context::WorkflowContext, task_id: &str, reason: &str) -> Result<()> {
+    run_git(&ctx.workflow_worktree, &["add", "."])
+        .map_err(|e| BurlError::GitError(format!("failed to stage reject changes: {}", e)))?;
 
     let staged = run_git(&ctx.workflow_worktree, &["diff", "--cached", "--name-only"])?;
     if staged.stdout.is_empty() {
@@ -859,9 +854,8 @@ fn commit_reject(
 
     let commit_msg = format!("Reject task {} (approve): {}", task_id, short_reason);
 
-    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg]).map_err(|e| {
-        BurlError::GitError(format!("failed to commit reject: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg])
+        .map_err(|e| BurlError::GitError(format!("failed to commit reject: {}", e)))?;
 
     Ok(())
 }
@@ -888,97 +882,10 @@ mod tests {
     use crate::commands::init::cmd_init;
     use crate::commands::submit::cmd_submit;
     use crate::exit_codes;
+    use crate::test_support::{DirGuard, create_test_repo_with_remote};
     use serial_test::serial;
-    use std::path::PathBuf;
     use std::process::Command as ProcessCommand;
     use tempfile::TempDir;
-
-    /// RAII guard for changing current directory - restores on drop.
-    struct DirGuard {
-        original: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &std::path::Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(new_dir).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
-    }
-
-    /// Create a temporary git repository for testing with remote.
-    fn create_test_repo_with_remote() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Rename default branch to main
-        let _ = ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["branch", "-M", "main"])
-            .output();
-
-        // Create initial commit
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add second commit
-        std::fs::write(path.join("file2.txt"), "Second file\n").unwrap();
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Second commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add remote pointing to itself (simulates remote for fetch)
-        let path_str = path.to_string_lossy();
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["remote", "add", "origin", &path_str])
-            .output()
-            .expect("failed to add remote");
-
-        temp_dir
-    }
 
     /// Helper to create a task in QA state with valid changes.
     fn setup_task_in_qa(temp_dir: &TempDir) -> PathBuf {
@@ -1093,9 +1000,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with empty build_command to skip build validation
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\n").unwrap();
 
         // Setup task in QA
@@ -1135,7 +1040,10 @@ mod tests {
             .output()
             .expect("failed to get git log");
         let log_output = String::from_utf8_lossy(&main_log.stdout);
-        assert!(log_output.contains("Add valid implementation"), "Main should contain the task commit");
+        assert!(
+            log_output.contains("Add valid implementation"),
+            "Main should contain the task commit"
+        );
     }
 
     #[test]
@@ -1148,9 +1056,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with empty build_command
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\n").unwrap();
 
         // Setup task in QA
@@ -1192,13 +1098,19 @@ mod tests {
         let err = result.unwrap_err();
         // Should be a GitError for rebase conflict
         assert_eq!(err.exit_code(), exit_codes::GIT_FAILURE);
-        assert!(err.to_string().contains("rebase conflict") || err.to_string().contains("approval rejected"));
+        assert!(
+            err.to_string().contains("rebase conflict")
+                || err.to_string().contains("approval rejected")
+        );
 
         // Verify task moved to READY (rejected)
         let ready_path = temp_dir
             .path()
             .join(".burl/.workflow/READY/TASK-001-test-approve.md");
-        assert!(ready_path.exists(), "Task should be in READY bucket after rejection");
+        assert!(
+            ready_path.exists(),
+            "Task should be in READY bucket after rejection"
+        );
 
         // Verify QA is empty
         let qa_path = temp_dir
@@ -1207,7 +1119,10 @@ mod tests {
         assert!(!qa_path.exists(), "Task should no longer be in QA");
 
         // Verify worktree was preserved (for rework)
-        assert!(worktree_path.exists(), "Worktree should be preserved for rework");
+        assert!(
+            worktree_path.exists(),
+            "Worktree should be preserved for rework"
+        );
 
         // Verify qa_attempts was incremented
         let task = TaskFile::load(&ready_path).unwrap();

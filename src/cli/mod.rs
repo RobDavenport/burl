@@ -279,12 +279,19 @@ mod tests {
     #[test]
     fn parse_add_full() {
         let cli = Cli::try_parse_from([
-            "burl", "add", "Implement feature",
-            "--priority", "high",
-            "--affects", "src/lib.rs,src/main.rs",
-            "--must-not-touch", "src/tests/**",
-            "--tags", "feature,v1",
-        ]).unwrap();
+            "burl",
+            "add",
+            "Implement feature",
+            "--priority",
+            "high",
+            "--affects",
+            "src/lib.rs,src/main.rs",
+            "--must-not-touch",
+            "src/tests/**",
+            "--tags",
+            "feature,v1",
+        ])
+        .unwrap();
         if let Command::Add(args) = cli.command {
             assert_eq!(args.title, "Implement feature");
             assert_eq!(args.priority, "high");
@@ -364,7 +371,8 @@ mod tests {
 
     #[test]
     fn parse_reject() {
-        let cli = Cli::try_parse_from(["burl", "reject", "TASK-001", "--reason", "Tests failing"]).unwrap();
+        let cli = Cli::try_parse_from(["burl", "reject", "TASK-001", "--reason", "Tests failing"])
+            .unwrap();
         if let Command::Reject(args) = cli.command {
             assert_eq!(args.task_id, "TASK-001");
             assert_eq!(args.reason, "Tests failing");
@@ -432,7 +440,8 @@ mod tests {
 
     #[test]
     fn parse_clean() {
-        let cli = Cli::try_parse_from(["burl", "clean", "--completed", "--orphans", "--yes"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["burl", "clean", "--completed", "--orphans", "--yes"]).unwrap();
         if let Command::Clean(args) = cli.command {
             assert!(args.completed);
             assert!(args.orphans);

@@ -17,6 +17,8 @@ pub mod git;
 pub mod git_worktree;
 pub mod locks;
 pub mod task;
+#[cfg(test)]
+mod test_support;
 pub mod validate;
 pub mod workflow;
 

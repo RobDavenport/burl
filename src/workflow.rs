@@ -119,10 +119,7 @@ impl TaskIndex {
 
     /// Get all tasks in a specific bucket.
     pub fn tasks_in_bucket(&self, bucket: &str) -> Vec<&TaskInfo> {
-        self.tasks
-            .values()
-            .filter(|t| t.bucket == bucket)
-            .collect()
+        self.tasks.values().filter(|t| t.bucket == bucket).collect()
     }
 
     /// Get task counts per bucket.
@@ -385,7 +382,8 @@ mod tests {
 
     #[test]
     fn test_slugify_title_length_limit() {
-        let long_title = "This is a very long title that exceeds the maximum allowed length for slugs";
+        let long_title =
+            "This is a very long title that exceeds the maximum allowed length for slugs";
         let slug = slugify_title(long_title);
         assert!(slug.len() <= 50);
         assert!(!slug.ends_with('-'));
@@ -420,13 +418,22 @@ mod tests {
     #[test]
     fn test_extract_task_id_from_filename() {
         let path = PathBuf::from("TASK-001-hello-world.md");
-        assert_eq!(extract_task_id_from_filename(&path), Some("TASK-001".to_string()));
+        assert_eq!(
+            extract_task_id_from_filename(&path),
+            Some("TASK-001".to_string())
+        );
 
         let path = PathBuf::from("TASK-123-test.md");
-        assert_eq!(extract_task_id_from_filename(&path), Some("TASK-123".to_string()));
+        assert_eq!(
+            extract_task_id_from_filename(&path),
+            Some("TASK-123".to_string())
+        );
 
         let path = PathBuf::from("TASK-0001-long-slug.md");
-        assert_eq!(extract_task_id_from_filename(&path), Some("TASK-0001".to_string()));
+        assert_eq!(
+            extract_task_id_from_filename(&path),
+            Some("TASK-0001".to_string())
+        );
 
         let path = PathBuf::from("not-a-task.md");
         assert_eq!(extract_task_id_from_filename(&path), None);

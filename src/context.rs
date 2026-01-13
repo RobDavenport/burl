@@ -127,9 +127,8 @@ impl WorkflowContext {
 
         if git_path.is_file() {
             // This is a linked worktree - .git is a file containing the gitdir path
-            let git_content = std::fs::read_to_string(&git_path).map_err(|e| {
-                BurlError::GitError(format!("failed to read .git file: {}", e))
-            })?;
+            let git_content = std::fs::read_to_string(&git_path)
+                .map_err(|e| BurlError::GitError(format!("failed to read .git file: {}", e)))?;
 
             // Parse "gitdir: /path/to/.git/worktrees/name"
             if let Some(gitdir) = git_content.strip_prefix("gitdir: ") {
@@ -253,49 +252,9 @@ pub fn resolve_context() -> Result<WorkflowContext> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::create_test_repo;
     use std::process::Command;
     use tempfile::TempDir;
-
-    /// Create a temporary git repository for testing.
-    fn create_test_repo() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        Command::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Create initial commit
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        temp_dir
-    }
 
     #[test]
     fn test_resolve_from_repo_root() {
@@ -485,12 +444,7 @@ mod tests {
         let workflow_path = main_path.join(".burl");
         Command::new("git")
             .current_dir(main_path)
-            .args([
-                "worktree",
-                "add",
-                workflow_path.to_str().unwrap(),
-                "burl",
-            ])
+            .args(["worktree", "add", workflow_path.to_str().unwrap(), "burl"])
             .output()
             .expect("failed to create workflow worktree");
 

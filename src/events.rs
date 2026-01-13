@@ -133,9 +133,8 @@ impl Event {
     ///
     /// This is used for NDJSON format where each line is a complete JSON object.
     pub fn to_ndjson_line(&self) -> Result<String> {
-        serde_json::to_string(self).map_err(|e| {
-            BurlError::UserError(format!("failed to serialize event to JSON: {}", e))
-        })
+        serde_json::to_string(self)
+            .map_err(|e| BurlError::UserError(format!("failed to serialize event to JSON: {}", e)))
     }
 }
 
@@ -276,7 +275,7 @@ mod tests {
 
         // Create workflow structure
         let ctx = WorkflowContext::resolve_from(path).unwrap();
-        std::fs::create_dir_all(&ctx.events_dir()).unwrap();
+        std::fs::create_dir_all(ctx.events_dir()).unwrap();
 
         (temp_dir, ctx)
     }
@@ -358,8 +357,7 @@ mod tests {
         assert!(!events_file.exists());
 
         // Append an event
-        let event = Event::new(EventAction::Init)
-            .with_details(json!({"workflow_branch": "burl"}));
+        let event = Event::new(EventAction::Init).with_details(json!({"workflow_branch": "burl"}));
         append_event(&ctx, &event).unwrap();
 
         // File should now exist

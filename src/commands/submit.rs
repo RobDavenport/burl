@@ -21,16 +21,15 @@ use crate::config::Config;
 use crate::context::require_initialized_workflow;
 use crate::diff::{added_lines, changed_files};
 use crate::error::{BurlError, Result};
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::git::run_git;
 use crate::git_worktree::get_current_branch;
 use crate::locks::{acquire_task_lock, acquire_workflow_lock};
 use crate::task::TaskFile;
 use crate::validate::{validate_scope, validate_stubs_with_config};
-use crate::workflow::{validate_task_id, TaskIndex};
+use crate::workflow::{TaskIndex, validate_task_id};
 use chrono::Utc;
 use serde_json::json;
-use std::fs;
 use std::path::PathBuf;
 
 /// Execute the `burl submit` command.
@@ -63,8 +62,7 @@ pub fn cmd_submit(args: SubmitArgs) -> Result<()> {
             let doing_tasks: Vec<_> = index.tasks_in_bucket("DOING");
             if doing_tasks.is_empty() {
                 return Err(BurlError::UserError(
-                    "no tasks in DOING. Claim a task first with `burl claim`."
-                        .to_string(),
+                    "no tasks in DOING. Claim a task first with `burl claim`.".to_string(),
                 ));
             }
             if doing_tasks.len() > 1 {
@@ -226,18 +224,13 @@ pub fn cmd_submit(args: SubmitArgs) -> Result<()> {
     task_file.save(&task_info.path)?;
 
     // Move task file DOING -> QA atomically
-    let filename = task_info.path.file_name().ok_or_else(|| {
-        BurlError::UserError("invalid task file path".to_string())
-    })?;
+    let filename = task_info
+        .path
+        .file_name()
+        .ok_or_else(|| BurlError::UserError("invalid task file path".to_string()))?;
     let qa_path = ctx.bucket_path("QA").join(filename);
 
-    // Ensure QA directory exists
-    fs::create_dir_all(ctx.bucket_path("QA")).map_err(|e| {
-        BurlError::UserError(format!("failed to create QA directory: {}", e))
-    })?;
-
-    // Atomic move
-    fs::rename(&task_info.path, &qa_path).map_err(|e| {
+    crate::fs::move_file(&task_info.path, &qa_path).map_err(|e| {
         BurlError::UserError(format!(
             "failed to move task from DOING to QA: {}\n\n\
              Task file: {}\n\
@@ -287,7 +280,10 @@ pub fn cmd_submit(args: SubmitArgs) -> Result<()> {
     println!("  Commits:       {}", commit_count);
     println!("  Files changed: {}", changed.len());
     if config.push_task_branch_on_submit {
-        println!("  Pushed:        {} -> {}/{}", expected_branch, config.remote, expected_branch);
+        println!(
+            "  Pushed:        {} -> {}/{}",
+            expected_branch, config.remote, expected_branch
+        );
     }
     println!();
     println!("Task is now awaiting review in QA.");
@@ -322,15 +318,10 @@ fn push_task_branch(worktree: &std::path::Path, remote: &str, branch: &str) -> R
 }
 
 /// Commit the submit to the workflow branch.
-fn commit_submit(
-    ctx: &crate::context::WorkflowContext,
-    task_id: &str,
-    title: &str,
-) -> Result<()> {
+fn commit_submit(ctx: &crate::context::WorkflowContext, task_id: &str, title: &str) -> Result<()> {
     // Stage all changes in the workflow worktree
-    run_git(&ctx.workflow_worktree, &["add", "."]).map_err(|e| {
-        BurlError::GitError(format!("failed to stage submit changes: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["add", "."])
+        .map_err(|e| BurlError::GitError(format!("failed to stage submit changes: {}", e)))?;
 
     // Check if anything was staged
     let staged = run_git(&ctx.workflow_worktree, &["diff", "--cached", "--name-only"])?;
@@ -341,9 +332,8 @@ fn commit_submit(
     // Create commit message
     let commit_msg = format!("Submit task {}: {}", task_id, title);
 
-    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg]).map_err(|e| {
-        BurlError::GitError(format!("failed to commit submit: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg])
+        .map_err(|e| BurlError::GitError(format!("failed to commit submit: {}", e)))?;
 
     Ok(())
 }
@@ -368,97 +358,9 @@ mod tests {
     use crate::commands::claim::cmd_claim;
     use crate::commands::init::cmd_init;
     use crate::exit_codes;
+    use crate::test_support::{DirGuard, create_test_repo_with_remote};
     use serial_test::serial;
-    use std::path::PathBuf;
     use std::process::Command;
-    use tempfile::TempDir;
-
-    /// RAII guard for changing current directory - restores on drop.
-    struct DirGuard {
-        original: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &std::path::Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(new_dir).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
-    }
-
-    /// Create a temporary git repository for testing with remote.
-    fn create_test_repo_with_remote() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        Command::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Rename default branch to main
-        let _ = Command::new("git")
-            .current_dir(path)
-            .args(["branch", "-M", "main"])
-            .output();
-
-        // Create initial commit
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add second commit
-        std::fs::write(path.join("file2.txt"), "Second file\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Second commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add remote pointing to itself (simulates remote for fetch)
-        let path_str = path.to_string_lossy();
-        Command::new("git")
-            .current_dir(path)
-            .args(["remote", "add", "origin", &path_str])
-            .output()
-            .expect("failed to add remote");
-
-        temp_dir
-    }
 
     #[test]
     #[serial]
@@ -646,7 +548,9 @@ mod tests {
         .unwrap();
 
         // Find the worktree path
-        let worktree_path = temp_dir.path().join(".worktrees/task-001-test-valid-submit");
+        let worktree_path = temp_dir
+            .path()
+            .join(".worktrees/task-001-test-valid-submit");
 
         // Make a valid change (no stubs)
         std::fs::create_dir_all(worktree_path.join("src")).unwrap();

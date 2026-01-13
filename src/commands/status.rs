@@ -8,7 +8,7 @@ use crate::context::require_initialized_workflow;
 use crate::error::Result;
 use crate::locks;
 use crate::task::TaskFile;
-use crate::workflow::{TaskIndex, BUCKETS};
+use crate::workflow::{BUCKETS, TaskIndex};
 use chrono::{Duration, Utc};
 
 /// Stall threshold in hours for DOING tasks.
@@ -108,7 +108,10 @@ pub fn cmd_status() -> Result<()> {
             config.qa_max_attempts
         ));
         for (id, attempts) in &near_max_attempts {
-            issues.push(format!("  - {} ({}/{} attempts)", id, attempts, config.qa_max_attempts));
+            issues.push(format!(
+                "  - {} ({}/{} attempts)",
+                id, attempts, config.qa_max_attempts
+            ));
         }
     }
 
@@ -210,67 +213,8 @@ mod tests {
     use crate::cli::AddArgs;
     use crate::commands::add::cmd_add;
     use crate::commands::init::cmd_init;
+    use crate::test_support::{DirGuard, create_test_repo};
     use serial_test::serial;
-    use std::path::PathBuf;
-    use std::process::Command;
-    use tempfile::TempDir;
-
-    /// RAII guard for changing current directory - restores on drop.
-    struct DirGuard {
-        original: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &std::path::Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(new_dir).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
-    }
-
-    /// Create a temporary git repository for testing.
-    fn create_test_repo() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        temp_dir
-    }
 
     #[test]
     #[serial]

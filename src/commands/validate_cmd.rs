@@ -21,13 +21,13 @@ use crate::config::Config;
 use crate::context::require_initialized_workflow;
 use crate::diff::{added_lines, changed_files};
 use crate::error::{BurlError, Result};
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::git::run_git;
 use crate::git_worktree::get_current_branch;
 use crate::locks::{acquire_task_lock, acquire_workflow_lock};
 use crate::task::TaskFile;
 use crate::validate::{validate_scope, validate_stubs_with_config};
-use crate::workflow::{validate_task_id, TaskIndex};
+use crate::workflow::{TaskIndex, validate_task_id};
 use chrono::Utc;
 use serde_json::json;
 use std::path::PathBuf;
@@ -449,9 +449,8 @@ fn commit_validate(
     passed: bool,
 ) -> Result<()> {
     // Stage all changes in the workflow worktree
-    run_git(&ctx.workflow_worktree, &["add", "."]).map_err(|e| {
-        BurlError::GitError(format!("failed to stage validate changes: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["add", "."])
+        .map_err(|e| BurlError::GitError(format!("failed to stage validate changes: {}", e)))?;
 
     // Check if anything was staged
     let staged = run_git(&ctx.workflow_worktree, &["diff", "--cached", "--name-only"])?;
@@ -463,9 +462,8 @@ fn commit_validate(
     let status = if passed { "passed" } else { "failed" };
     let commit_msg = format!("Validate task {}: {}", task_id, status);
 
-    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg]).map_err(|e| {
-        BurlError::GitError(format!("failed to commit validate: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg])
+        .map_err(|e| BurlError::GitError(format!("failed to commit validate: {}", e)))?;
 
     Ok(())
 }
@@ -492,97 +490,10 @@ mod tests {
     use crate::commands::init::cmd_init;
     use crate::commands::submit::cmd_submit;
     use crate::exit_codes;
+    use crate::test_support::{DirGuard, create_test_repo_with_remote};
     use serial_test::serial;
-    use std::path::PathBuf;
     use std::process::Command as ProcessCommand;
     use tempfile::TempDir;
-
-    /// RAII guard for changing current directory - restores on drop.
-    struct DirGuard {
-        original: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &std::path::Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(new_dir).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
-    }
-
-    /// Create a temporary git repository for testing with remote.
-    fn create_test_repo_with_remote() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Rename default branch to main
-        let _ = ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["branch", "-M", "main"])
-            .output();
-
-        // Create initial commit
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add second commit
-        std::fs::write(path.join("file2.txt"), "Second file\n").unwrap();
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Second commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add remote pointing to itself (simulates remote for fetch)
-        let path_str = path.to_string_lossy();
-        ProcessCommand::new("git")
-            .current_dir(path)
-            .args(["remote", "add", "origin", &path_str])
-            .output()
-            .expect("failed to add remote");
-
-        temp_dir
-    }
 
     /// Helper to create a task in QA state.
     fn setup_task_in_qa(temp_dir: &TempDir) -> PathBuf {
@@ -762,9 +673,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with empty build_command to skip build validation
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\n").unwrap();
 
         // Setup task in QA
@@ -799,9 +708,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with empty build_command
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\n").unwrap();
 
         // Add task with restricted scope
@@ -822,7 +729,9 @@ mod tests {
         })
         .unwrap();
 
-        let worktree_path = temp_dir.path().join(".worktrees/task-001-test-scope-violation");
+        let worktree_path = temp_dir
+            .path()
+            .join(".worktrees/task-001-test-scope-violation");
 
         // Make a change OUTSIDE the allowed scope
         std::fs::create_dir_all(worktree_path.join("not_allowed")).unwrap();
@@ -916,9 +825,7 @@ mod tests {
         cmd_init().unwrap();
 
         // Write config with empty build_command
-        let config_path = temp_dir
-            .path()
-            .join(".burl/.workflow/config.yaml");
+        let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
         std::fs::write(&config_path, "build_command: \"\"\n").unwrap();
 
         // Setup task in QA

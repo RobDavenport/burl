@@ -421,7 +421,10 @@ index abc1234..def5678 100644
         assert_eq!(parse_hunk_header("@@ -1 +1 @@"), Some((1, 1)));
 
         // With context info after @@
-        assert_eq!(parse_hunk_header("@@ -10,5 +20,3 @@ fn foo()"), Some((10, 20)));
+        assert_eq!(
+            parse_hunk_header("@@ -10,5 +20,3 @@ fn foo()"),
+            Some((10, 20))
+        );
 
         // Zero-length addition (insertion)
         assert_eq!(parse_hunk_header("@@ -5,0 +6,2 @@"), Some((5, 6)));
@@ -496,9 +499,18 @@ index 222222..333333 100644
         let result = parse_added_lines_from_diff(diff).unwrap();
 
         // Count added lines per file
-        let jump_lines: Vec<_> = result.iter().filter(|l| l.file_path == "src/player/jump.rs").collect();
-        let mod_lines: Vec<_> = result.iter().filter(|l| l.file_path == "src/player/mod.rs").collect();
-        let config_lines: Vec<_> = result.iter().filter(|l| l.file_path == "src/config.rs").collect();
+        let jump_lines: Vec<_> = result
+            .iter()
+            .filter(|l| l.file_path == "src/player/jump.rs")
+            .collect();
+        let mod_lines: Vec<_> = result
+            .iter()
+            .filter(|l| l.file_path == "src/player/mod.rs")
+            .collect();
+        let config_lines: Vec<_> = result
+            .iter()
+            .filter(|l| l.file_path == "src/config.rs")
+            .collect();
 
         // jump.rs: 3 lines in first hunk, 1 in second
         assert_eq!(jump_lines.len(), 4);
@@ -668,7 +680,9 @@ Binary files /dev/null and b/assets/image.png differ
             .args(["rev-parse", "HEAD"])
             .output()
             .expect("failed to get HEAD");
-        let base_sha = String::from_utf8_lossy(&base_output.stdout).trim().to_string();
+        let base_sha = String::from_utf8_lossy(&base_output.stdout)
+            .trim()
+            .to_string();
 
         // Modify the file and create new file
         std::fs::write(path.join("test.rs"), "fn main() {\n    let x = 42;\n}\n").unwrap();

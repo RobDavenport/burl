@@ -6,13 +6,13 @@ use crate::cli::AddArgs;
 use crate::config::Config;
 use crate::context::require_initialized_workflow;
 use crate::error::{BurlError, Result};
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::fs::atomic_write_file;
 use crate::git::run_git;
 use crate::locks;
 use crate::task::{TaskFile, TaskFrontmatter};
 use crate::workflow::{
-    generate_task_filename, generate_task_id, validate_filename_safe, TaskIndex,
+    TaskIndex, generate_task_filename, generate_task_id, validate_filename_safe,
 };
 use chrono::Utc;
 use serde_json::json;
@@ -164,9 +164,8 @@ fn commit_task_addition(
     title: &str,
 ) -> Result<()> {
     // Stage the task file
-    run_git(&ctx.workflow_worktree, &["add", "."]).map_err(|e| {
-        BurlError::GitError(format!("failed to stage task file: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["add", "."])
+        .map_err(|e| BurlError::GitError(format!("failed to stage task file: {}", e)))?;
 
     // Check if anything was staged
     let staged = run_git(&ctx.workflow_worktree, &["diff", "--cached", "--name-only"])?;
@@ -177,24 +176,19 @@ fn commit_task_addition(
     // Create commit message
     let commit_msg = format!("Add task {}: {}", task_id, title);
 
-    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg]).map_err(|e| {
-        BurlError::GitError(format!("failed to commit task: {}", e))
-    })?;
+    run_git(&ctx.workflow_worktree, &["commit", "-m", &commit_msg])
+        .map_err(|e| BurlError::GitError(format!("failed to commit task: {}", e)))?;
 
     Ok(())
 }
 
 /// Push the workflow branch to the remote.
-fn push_workflow_branch(
-    ctx: &crate::context::WorkflowContext,
-    config: &Config,
-) -> Result<()> {
+fn push_workflow_branch(ctx: &crate::context::WorkflowContext, config: &Config) -> Result<()> {
     run_git(
         &ctx.workflow_worktree,
         &["push", &config.remote, &config.workflow_branch],
-    ).map_err(|e| {
-        BurlError::GitError(format!("failed to push workflow branch: {}", e))
-    })?;
+    )
+    .map_err(|e| BurlError::GitError(format!("failed to push workflow branch: {}", e)))?;
 
     Ok(())
 }
@@ -204,10 +198,8 @@ mod tests {
     use super::*;
     use crate::cli::AddArgs;
     use crate::commands::init::cmd_init;
+    use crate::test_support::{DirGuard, create_test_repo};
     use serial_test::serial;
-    use std::path::PathBuf;
-    use std::process::Command;
-    use tempfile::TempDir;
 
     #[test]
     fn test_validate_priority_valid() {
@@ -222,66 +214,6 @@ mod tests {
         assert!(validate_priority("urgent").is_err());
         assert!(validate_priority("critical").is_err());
         assert!(validate_priority("").is_err());
-    }
-
-    /// RAII guard for changing current directory - restores on drop.
-    struct DirGuard {
-        original: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &std::path::Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(new_dir).unwrap();
-            Self { original }
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = std::env::set_current_dir(&self.original);
-        }
-    }
-
-    /// Create a temporary git repository for testing.
-    fn create_test_repo() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        Command::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Create initial commit (required for worktree creation)
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        temp_dir
     }
 
     #[test]
@@ -306,8 +238,14 @@ mod tests {
         cmd_add(args).unwrap();
 
         // Verify task file was created
-        let task_path = temp_dir.path().join(".burl/.workflow/READY/TASK-001-test-task.md");
-        assert!(task_path.exists(), "Task file should exist at {:?}", task_path);
+        let task_path = temp_dir
+            .path()
+            .join(".burl/.workflow/READY/TASK-001-test-task.md");
+        assert!(
+            task_path.exists(),
+            "Task file should exist at {:?}",
+            task_path
+        );
 
         // Verify task content
         let task = TaskFile::load(&task_path).unwrap();
@@ -354,8 +292,12 @@ mod tests {
         cmd_add(args2).unwrap();
 
         // Verify both tasks exist with correct IDs
-        let task1_path = temp_dir.path().join(".burl/.workflow/READY/TASK-001-first-task.md");
-        let task2_path = temp_dir.path().join(".burl/.workflow/READY/TASK-002-second-task.md");
+        let task1_path = temp_dir
+            .path()
+            .join(".burl/.workflow/READY/TASK-001-first-task.md");
+        let task2_path = temp_dir
+            .path()
+            .join(".burl/.workflow/READY/TASK-002-second-task.md");
         assert!(task1_path.exists());
         assert!(task2_path.exists());
 

@@ -608,84 +608,8 @@ pub fn verify_worktree_branch<P: AsRef<Path>>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::{create_test_repo, create_test_repo_with_remote};
     use std::process::Command;
-    use tempfile::TempDir;
-
-    /// Create a temporary git repository for testing.
-    fn create_test_repo() -> TempDir {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Initialize git repo
-        Command::new("git")
-            .current_dir(path)
-            .args(["init"])
-            .output()
-            .expect("failed to init git repo");
-
-        // Configure git user for commits
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.email", "test@example.com"])
-            .output()
-            .expect("failed to set git email");
-
-        Command::new("git")
-            .current_dir(path)
-            .args(["config", "user.name", "Test User"])
-            .output()
-            .expect("failed to set git name");
-
-        // Create initial commit
-        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Initial commit"])
-            .output()
-            .expect("failed to commit");
-
-        temp_dir
-    }
-
-    /// Create a test repo with a remote pointing to itself (for fetch testing).
-    fn create_test_repo_with_remote() -> TempDir {
-        let temp_dir = create_test_repo();
-        let path = temp_dir.path();
-
-        // Rename default branch to main if it's not already
-        let _ = Command::new("git")
-            .current_dir(path)
-            .args(["branch", "-M", "main"])
-            .output();
-
-        // Add second commit
-        std::fs::write(path.join("file2.txt"), "Second file\n").unwrap();
-        Command::new("git")
-            .current_dir(path)
-            .args(["add", "."])
-            .output()
-            .expect("failed to add files");
-        Command::new("git")
-            .current_dir(path)
-            .args(["commit", "-m", "Second commit"])
-            .output()
-            .expect("failed to commit");
-
-        // Add remote pointing to itself (simulates remote for fetch)
-        let path_str = path.to_string_lossy();
-        Command::new("git")
-            .current_dir(path)
-            .args(["remote", "add", "origin", &path_str])
-            .output()
-            .expect("failed to add remote");
-
-        temp_dir
-    }
 
     #[test]
     fn test_task_branch_name() {
@@ -699,10 +623,7 @@ mod tests {
             task_branch_name("TASK-001", Some("Player Jump")),
             "task-001-player-jump"
         );
-        assert_eq!(
-            task_branch_name("001", Some("feature")),
-            "task-001-feature"
-        );
+        assert_eq!(task_branch_name("001", Some("feature")), "task-001-feature");
     }
 
     #[test]
@@ -990,8 +911,16 @@ mod tests {
         };
 
         // Setup a task worktree
-        let info = setup_task_worktree(&ctx, "TASK-001", Some("test-feature"), "origin", "main", None, None)
-            .unwrap();
+        let info = setup_task_worktree(
+            &ctx,
+            "TASK-001",
+            Some("test-feature"),
+            "origin",
+            "main",
+            None,
+            None,
+        )
+        .unwrap();
 
         // Verify the result
         assert!(!info.reused);
@@ -1020,8 +949,16 @@ mod tests {
         };
 
         // First setup
-        let info1 = setup_task_worktree(&ctx, "TASK-002", Some("reuse-test"), "origin", "main", None, None)
-            .unwrap();
+        let info1 = setup_task_worktree(
+            &ctx,
+            "TASK-002",
+            Some("reuse-test"),
+            "origin",
+            "main",
+            None,
+            None,
+        )
+        .unwrap();
         assert!(!info1.reused);
 
         // Second setup with same task should reuse

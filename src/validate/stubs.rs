@@ -236,7 +236,10 @@ impl CompiledStubPatterns {
 /// let result = validate_stubs(&patterns, &added_lines);
 /// assert!(!result.passed);
 /// ```
-pub fn validate_stubs(patterns: &CompiledStubPatterns, added_lines: &[AddedLine]) -> StubValidationResult {
+pub fn validate_stubs(
+    patterns: &CompiledStubPatterns,
+    added_lines: &[AddedLine],
+) -> StubValidationResult {
     let mut violations = Vec::new();
 
     for line in added_lines {
@@ -305,10 +308,11 @@ mod tests {
 
     /// Create a config with custom stub patterns and extensions.
     fn make_config(patterns: Vec<&str>, extensions: Vec<&str>) -> Config {
-        let mut config = Config::default();
-        config.stub_patterns = patterns.into_iter().map(String::from).collect();
-        config.stub_check_extensions = extensions.into_iter().map(String::from).collect();
-        config
+        Config {
+            stub_patterns: patterns.into_iter().map(String::from).collect(),
+            stub_check_extensions: extensions.into_iter().map(String::from).collect(),
+            ..Default::default()
+        }
     }
 
     // =========================================================================
@@ -351,7 +355,10 @@ mod tests {
         assert_eq!(result.violations.len(), 1);
         assert_eq!(result.violations[0].file_path, "src/player/jump.rs");
         assert_eq!(result.violations[0].line_number, 45);
-        assert_eq!(result.violations[0].content, "    // TODO: implement cooldown");
+        assert_eq!(
+            result.violations[0].content,
+            "    // TODO: implement cooldown"
+        );
         assert_eq!(result.violations[0].matched_pattern, "TODO");
     }
 
@@ -385,11 +392,7 @@ mod tests {
         let config = make_config(vec!["TODO"], vec!["rs"]);
         let patterns = CompiledStubPatterns::from_config(&config).unwrap();
 
-        let added_lines = vec![make_added_line(
-            "src/lib.rs",
-            67,
-            "// TODO: implement",
-        )];
+        let added_lines = vec![make_added_line("src/lib.rs", 67, "// TODO: implement")];
 
         let result = validate_stubs(&patterns, &added_lines);
 
@@ -406,11 +409,7 @@ mod tests {
         let patterns = CompiledStubPatterns::from_config(&config).unwrap();
 
         // .md is not in stub_check_extensions
-        let added_lines = vec![make_added_line(
-            "README.md",
-            5,
-            "TODO: add more examples",
-        )];
+        let added_lines = vec![make_added_line("README.md", 5, "TODO: add more examples")];
 
         let result = validate_stubs(&patterns, &added_lines);
 
@@ -449,8 +448,7 @@ mod tests {
             assert!(
                 !result.passed,
                 "Expected '{}' in {} to be detected as a stub",
-                content,
-                file_path
+                content, file_path
             );
         }
     }
@@ -661,8 +659,18 @@ mod tests {
     #[test]
     fn test_error_message_format() {
         let result = StubValidationResult::fail(vec![
-            StubViolation::new("src/player/jump.rs", 67, "unimplemented!()", "unimplemented!"),
-            StubViolation::new("src/player/jump.rs", 45, "// TODO: implement cooldown", "TODO"),
+            StubViolation::new(
+                "src/player/jump.rs",
+                67,
+                "unimplemented!()",
+                "unimplemented!",
+            ),
+            StubViolation::new(
+                "src/player/jump.rs",
+                45,
+                "// TODO: implement cooldown",
+                "TODO",
+            ),
         ]);
 
         let msg = result.format_error();
@@ -786,13 +794,21 @@ mod tests {
         let added_lines = vec![
             // Clean Rust code
             make_added_line("src/player/jump.rs", 15, "    fn jump(&mut self) {"),
-            make_added_line("src/player/jump.rs", 16, "        self.velocity.y = JUMP_FORCE;"),
+            make_added_line(
+                "src/player/jump.rs",
+                16,
+                "        self.velocity.y = JUMP_FORCE;",
+            ),
             make_added_line("src/player/jump.rs", 17, "    }"),
             // Stub in Rust code
             make_added_line("src/player/jump.rs", 30, "    unimplemented!()"),
             // Clean Python code
             make_added_line("scripts/build.py", 5, "def build():"),
-            make_added_line("scripts/build.py", 6, "    return subprocess.run(['cargo', 'build'])"),
+            make_added_line(
+                "scripts/build.py",
+                6,
+                "    return subprocess.run(['cargo', 'build'])",
+            ),
             // Documentation (ignored)
             make_added_line("docs/README.md", 10, "TODO: document the API"),
             // Config file (ignored)
