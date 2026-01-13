@@ -6,8 +6,11 @@
 
 mod cli;
 mod commands;
-mod error;
-mod exit_codes;
+pub mod config;
+pub mod context;
+pub mod error;
+pub mod exit_codes;
+pub mod git;
 
 use cli::Cli;
 use std::process::ExitCode;
