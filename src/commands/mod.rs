@@ -6,6 +6,7 @@
 pub mod add;
 pub mod approve;
 pub mod claim;
+pub mod doctor;
 pub mod init;
 pub mod reject;
 mod show;
@@ -190,8 +191,8 @@ fn cmd_lock_clear(args: LockClearArgs) -> Result<()> {
     Ok(())
 }
 
-fn cmd_doctor(_args: DoctorArgs) -> Result<()> {
-    Err(BurlError::NotImplemented("burl doctor".to_string()))
+fn cmd_doctor(args: DoctorArgs) -> Result<()> {
+    doctor::cmd_doctor(args)
 }
 
 fn cmd_clean(_args: CleanArgs) -> Result<()> {
@@ -235,16 +236,7 @@ mod tests {
     // because it relied on the current directory not having a workflow,
     // which is fragile when tests run in parallel from the burl repo itself.
 
-    #[test]
-    fn doctor_returns_not_implemented() {
-        let args = DoctorArgs {
-            repair: false,
-            force: false,
-        };
-        let result = cmd_doctor(args);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().exit_code(), exit_codes::USER_ERROR);
-    }
+    // Note: doctor is now fully implemented with tests in doctor.rs
 
     #[test]
     fn clean_returns_not_implemented() {
