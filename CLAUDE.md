@@ -4,9 +4,16 @@
 
 `burl` is a minimal, file-based workflow orchestrator for agentic coding/review pipelines.
 
+## TL;DR
+
+- Spec is `burl.md`; architecture map is `ARCHITECTURE.md`.
+- Workflow state is folders + task markdown in the canonical worktree (default `.burl/` on branch `burl`).
+- Keep gates deterministic and diff-based (added lines only).
+
 ## Start here
 
 - `burl.md` — PRD/spec
+- `ARCHITECTURE.md` — repo map + invariants
 - `ROADMAP.md` — current vs future features
 - `tasks/README.md` — sequential implementation tasks + acceptance criteria
 

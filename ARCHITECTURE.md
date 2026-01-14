@@ -1,191 +1,182 @@
 # Burl Architecture
 
-This document describes the current codebase structure, key types, and module dependencies.
+> This is a **codebase map + invariants** for contributors (including LLM agents).
+> For user-facing semantics and workflow behavior, see `burl.md`.
 
-## Entry Point
+## TL;DR (mental model)
 
-- `main.rs` - CLI entry point. Parses arguments via `cli::Cli`, dispatches to command handlers, and maps errors to exit codes.
+Burl is a file-based workflow orchestrator that stores durable state as:
 
-## Top-Level Modules
+- Task markdown files in status buckets (`READY/`, `DOING/`, `QA/`, `DONE/`, `BLOCKED/`)
+- Workflow metadata in `.burl/.workflow/` (config, locks, events)
+- Git branches + worktrees per task for isolation
 
-### Core Primitives
+Most commands follow the same shape:
 
-- **`context`** - Repository and workflow context resolution. Finds the git repo root from any working directory, resolves canonical workflow worktree paths, and provides `WorkflowContext` with all workflow file locations.
+1. Resolve `WorkflowContext` (repo root + canonical workflow worktree)
+2. Acquire one or more locks (workflow/task/claim)
+3. Read/validate config + task file
+4. Perform git/worktree operations and/or update task files
+5. Commit workflow state changes (when applicable)
+6. Append an NDJSON event entry
 
-- **`workflow`** - Task index and bucket operations. Enumerates task files across buckets, validates task IDs, generates task filenames, and provides `TaskIndex` for querying tasks by ID or bucket.
+## Quick lookups
 
-- **`task`** - Task file model (YAML frontmatter + markdown body). Parses and serializes task files with forward-compatible field preservation. Provides `TaskFile` and `TaskFrontmatter` types.
+| I want to… | Start here |
+| --- | --- |
+| Add or change a CLI command | `src/cli/mod.rs`, `src/commands/mod.rs`, `src/commands/<cmd>/` |
+| Understand the task file format | `src/task/mod.rs` (model), `src/task/io.rs` (read/write) |
+| Understand workflow buckets/indexing | `src/workflow.rs` |
+| Understand locks + stale lock behavior | `src/locks/` |
+| Understand branch/worktree naming | `src/git_worktree/naming.rs` |
+| Change validation gates | `src/validate/` |
+| Change audit/event logging | `src/events.rs` |
+| Change exit code mapping | `src/exit_codes.rs`, `src/error.rs` |
 
-- **`error`** - Error types and exit code mapping. Uses `thiserror` for error definitions. Maps `BurlError` variants to exit codes (1=user error, 2=validation failure, 3=git failure, 4=lock failure).
+## Entry point
 
-### Git & Filesystem
+- `src/main.rs` — parses `cli::Cli`, dispatches to `commands::dispatch`, maps errors to exit codes.
 
-- **`git`** - Git command runner. Safe wrapper around git commands with captured stdout/stderr. Returns `GitOutput` on success or `BurlError::GitError` on failure.
+## Module map
 
-- **`git_worktree`** - Git worktree and task branch operations. Creates/removes worktrees, manages task branches, fetches from remote, determines base_sha. Used by claim, approve, clean commands.
+### Core primitives
 
-- **`task_git`** - Task git/worktree invariant validation. Validates recorded branch names and worktree paths follow conventions before use in git operations.
+- `src/context.rs` — repo/workflow path resolution; exposes `WorkflowContext`.
+- `src/workflow.rs` — bucket enumeration + ID/filename helpers; builds `TaskIndex`.
+- `src/task/` — task file model (YAML frontmatter + markdown body) + mutation helpers.
+- `src/error.rs` — error taxonomy (`BurlError`) and high-level categorization.
 
-- **`fs`** - Filesystem utilities. Provides atomic writes for workflow state integrity and cross-platform file moves.
+### Git & filesystem
 
-### Workflow Mechanics
+- `src/git.rs` — wrapper around `git` invocations with captured stdout/stderr.
+- `src/git_worktree/` — branch/worktree operations used by claim/submit/approve/clean.
+- `src/task_git.rs` — validates recorded branch/worktree invariants before use in git ops.
+- `src/fs/` — atomic writes and cross-platform move helpers.
 
-- **`locks`** - Locking subsystem. Implements workflow.lock (global), task locks (per-task), and claim.lock (optional). Uses RAII guards for automatic cleanup. Lock files are JSON with owner, pid, timestamp, and action metadata.
+### Workflow mechanics
 
-- **`events`** - Event logging (append-only audit log). Writes NDJSON events to `.burl/.workflow/events/events.ndjson` for workflow actions (init, claim, submit, approve, etc.). Events logged while holding workflow.lock.
-
-- **`config`** - Configuration model. Represents `.burl/.workflow/config.yaml` with forward-compatible parsing, defaults, and validation. Defines `Config`, `MergeStrategy`, `ConflictPolicy` types.
-
-- **`diff`** - Diff parsing primitives. Parses `git diff` output to extract changed files and added lines for scope validation and stub detection. Handles new files, renames, and hunk headers.
-
-- **`validate`** - Validation checks. Two submodules:
-  - `scope` - Enforces that changes are within allowed paths (affects/affects_globs) and not in forbidden paths (must_not_touch)
-  - `stubs` - Detects incomplete code patterns in added lines only (deterministic, diff-based)
+- `src/locks/` — workflow/task/claim locks using exclusive file creation; RAII guards.
+- `src/events.rs` — append-only NDJSON audit log in `.burl/.workflow/events/`.
+- `src/config/` — `.burl/.workflow/config.yaml` parsing with defaults and forward-compatible fields.
+- `src/diff/` — `git diff` parsing (changed files + added lines).
+- `src/validate/` — deterministic gates:
+  - `scope` — enforce `affects`/`affects_globs` and `must_not_touch`
+  - `stubs` — detect incomplete code patterns in **added lines only**
 
 ### Commands
 
-- **`commands`** - Command dispatcher and implementations. Routes CLI commands to handlers. Each command is in a submodule with tests.
-
-- **`cli`** - CLI argument parsing. Uses clap derive macros. Defines command structure and arguments.
+- `src/commands/` — one module per command; `src/commands/mod.rs` dispatches from the CLI.
+  - Lifecycle: `init`, `claim`, `submit`, `validate_cmd`, `approve`, `reject`
+  - Ops/UX: `status`, `show`, `worktree`, `lock`, `doctor`, `clean`, `watch`, `monitor`
 
 ### Support
 
-- **`exit_codes`** - Exit code constants (0=success, 1=user error, 2=validation failure, 3=git failure, 4=lock failure).
+- `src/exit_codes.rs` — canonical exit code constants.
+- `src/test_support.rs` — helpers for integration tests using temporary git repos.
 
-- **`test_support`** - Test utilities (creates temporary git repos for testing).
+## Key types
 
-## Key Types
+### `WorkflowContext` (`src/context.rs`)
 
-### `WorkflowContext` (context.rs)
-- `repo_root: PathBuf` - Main git worktree root
-- `workflow_worktree: PathBuf` - Workflow worktree path (`.burl/`)
-- `workflow_state_dir: PathBuf` - Workflow state directory (`.burl/.workflow/`)
-- `locks_dir: PathBuf` - Lock files directory
-- `worktrees_dir: PathBuf` - Task worktrees parent directory
+- `repo_root: PathBuf` — main git worktree root
+- `workflow_worktree: PathBuf` — workflow worktree path (default `.burl/`)
+- `workflow_state_dir: PathBuf` — workflow state directory (default `.burl/.workflow/`)
+- `locks_dir: PathBuf` — lock files directory
+- `worktrees_dir: PathBuf` — task worktrees parent directory
 
-Methods: `resolve()`, `ensure_initialized()`, `bucket_path()`, `config_path()`, etc.
+Common methods: `resolve()`, `ensure_initialized()`, `bucket_path()`, `config_path()`.
 
-### `TaskFile` (task/mod.rs)
-- `frontmatter: TaskFrontmatter` - Parsed YAML metadata
-- `body: String` - Markdown content after frontmatter
+### `TaskFile` (`src/task/mod.rs`)
 
-Methods: `parse()`, `serialize()`, `read()`, `write()`, mutation helpers.
+- `frontmatter: TaskFrontmatter` — parsed YAML metadata
+- `body: String` — markdown body after frontmatter
 
-### `TaskFrontmatter` (task/mod.rs)
-Core fields: `id`, `title`, `priority`, `created`, `assigned_to`, `qa_attempts`, `started_at`, `submitted_at`, `completed_at`, `worktree`, `branch`, `base_sha`, `affects`, `affects_globs`, `must_not_touch`, `depends_on`, `tags`, `extra` (forward compatibility).
+Common methods: `parse()`, `serialize()`, `read()`, `write()`, plus mutation helpers.
 
-### `TaskIndex` (workflow.rs)
-- `tasks: HashMap<String, TaskInfo>` - Map of task ID to info
-- `max_number: u32` - Highest task number seen
+### `TaskFrontmatter` (`src/task/mod.rs`)
 
-Methods: `build()`, `find()`, `tasks_in_bucket()`, `next_number()`.
+Core fields:
 
-### `LockGuard` (locks/guard.rs)
-RAII guard for workflow, task, and claim locks. Automatically releases lock on drop. Prevents double-release via Drop flag.
+- Identity: `id`, `title`, `priority`, `tags`
+- Timestamps: `created`, `started_at`, `submitted_at`, `completed_at`
+- Assignment: `assigned_to`, `qa_attempts`, `depends_on`
+- Git metadata: `branch`, `worktree`, `base_sha`
+- Validation: `affects`, `affects_globs`, `must_not_touch`
+- Forward compatibility: `extra` (unknown fields preserved)
 
-### `Event` (events.rs)
-- `ts: DateTime<Utc>` - Event timestamp
-- `action: EventAction` - What happened (init, claim, submit, etc.)
-- `actor: String` - Who performed the action
-- `task: Option<String>` - Task ID if task-specific
-- `details: Option<Value>` - Freeform JSON details
+### `TaskIndex` (`src/workflow.rs`)
 
-### `BurlError` (error.rs)
-Variants: `NotImplemented`, `UserError`, `ValidationError`, `GitError`, `LockError`. Each maps to a specific exit code.
+- `tasks: HashMap<String, TaskInfo>` — map of task ID → info
+- `max_number: u32` — highest task number seen
 
-## Module Dependencies
+Common methods: `build()`, `find()`, `tasks_in_bucket()`, `next_number()`.
+
+### `LockGuard` (`src/locks/guard.rs`)
+
+RAII guard for workflow/task/claim locks. Releases on drop.
+
+### `Event` (`src/events.rs`)
+
+Append-only NDJSON record with timestamp, action, actor, optional task id and JSON details.
+
+## On-disk workflow layout (canonical)
+
+All workflow state lives under the workflow worktree (default `.burl/`):
+
+- Buckets: `.burl/READY/`, `.burl/DOING/`, `.burl/QA/`, `.burl/DONE/`, `.burl/BLOCKED/`
+- Config (committed): `.burl/.workflow/config.yaml`
+- Events (committed): `.burl/.workflow/events/events.ndjson`
+- Locks (untracked): `.burl/.workflow/locks/*.lock`
+- Task worktrees (untracked): `{repo_root}/.worktrees/task-<NNN>-<slug>/`
+
+## Naming + invariants
+
+- Bucket/task naming conventions are implemented in `src/workflow.rs` and `src/git_worktree/naming.rs`.
+- Never trust recorded `branch`/`worktree` blindly: validate via `src/task_git.rs` before use.
+- Determinism guardrail: scope/stub checks must remain **diff-based** (no full-file scanning).
+
+## Dependency direction (high level)
 
 ```
-main.rs
-  ├─> cli (argument parsing)
-  ├─> commands (dispatcher)
-  └─> error, exit_codes
+src/main.rs
+  ├─> src/cli/
+  ├─> src/commands/
+  └─> src/error.rs + src/exit_codes.rs
 
-commands/
-  ├─> context (workflow resolution)
-  ├─> workflow (task index)
-  ├─> task (task file model)
-  ├─> locks (locking)
-  ├─> events (audit logging)
-  ├─> config (configuration)
-  ├─> validate (scope, stubs)
-  ├─> diff (git diff parsing)
-  ├─> git_worktree (worktree operations)
-  ├─> task_git (invariant validation)
-  ├─> git (git runner)
-  └─> fs (atomic writes)
-
-context
-  ├─> git (repo root detection)
-  └─> error
-
-workflow
-  ├─> context
-  └─> error
-
-task
-  ├─> error
-  └─> fs (atomic writes)
-
-locks
-  ├─> context
-  ├─> config
-  └─> error
-
-validate
-  ├─> diff (changed files, added lines)
-  ├─> config (stub patterns)
-  └─> error
-
-git_worktree
-  ├─> context
-  ├─> git
-  └─> error
+src/commands/*
+  ├─> src/context.rs + src/workflow.rs + src/task/
+  ├─> src/locks/ + src/events.rs + src/config/
+  ├─> src/validate/ + src/diff/
+  ├─> src/git_worktree/ + src/task_git.rs + src/git.rs
+  └─> src/fs/
 ```
 
-## Command Flow Example: `burl claim`
+Rule of thumb: core modules (`context/workflow/task/...`) should not depend on `commands`.
 
-1. `main.rs` parses args via `cli::Cli`
-2. `commands::dispatch()` routes to `claim::cmd_claim()`
-3. Claim resolves `WorkflowContext` and validates workflow exists
-4. Acquires `claim.lock` (global claim serialization)
-5. Builds `TaskIndex` to find task in READY bucket
-6. Acquires `workflow.lock` for state mutation
-7. Fetches from remote, determines `base_sha`
-8. Creates task branch and worktree via `git_worktree`
-9. Reads task file via `TaskFile::read()`
-10. Updates frontmatter (assigned_to, started_at, branch, worktree, base_sha)
-11. Moves task file from READY to DOING bucket
-12. Commits workflow state to git
-13. Appends claim event to audit log
-14. Releases locks (RAII drop)
-15. Returns success
+## Flow example: `burl claim`
 
-## State Storage
+1. Parse args in `src/main.rs` via `cli::Cli`
+2. Dispatch to `commands::claim::cmd_claim()`
+3. Resolve `WorkflowContext` and ensure workflow exists
+4. Acquire `claim.lock` (optional global claim serialization)
+5. Build `TaskIndex` and select a READY task
+6. Acquire `workflow.lock` for state mutation
+7. Determine `base_sha`
+8. Create task branch + worktree via `src/git_worktree/`
+9. Read and mutate the task file (`TaskFile`) frontmatter
+10. Move task file READY → DOING
+11. Commit workflow state to git (when applicable)
+12. Append a `claim` event to the audit log
+13. Release locks (RAII drop)
 
-All workflow state is stored in the canonical workflow worktree (`.burl/.workflow/`):
+## Validation gates (where enforced)
 
-- **Buckets**: `READY/`, `DOING/`, `QA/`, `DONE/`, `BLOCKED/` - contain task markdown files
-- **Config**: `config.yaml` - workflow configuration (committed)
-- **Locks**: `locks/*.lock` - lock files (untracked)
-- **Events**: `events/events.ndjson` - audit log (committed)
-- **Task worktrees**: `{repo_root}/.worktrees/task-NNN-slug/` - isolated work areas (untracked)
-
-## Validation Gates
-
-- **Claim**: Task must be in READY, not locked, dependencies satisfied
-- **Submit**: Scope validation (affects/must_not_touch), stub detection
-- **Validate**: Same as submit, plus optional build/test commands
-- **Approve**: Re-runs validation after rebase to main, fast-forward merge
-
-## Locking Strategy
-
-- **workflow.lock**: Global lock for any workflow state mutation (moving tasks, updating metadata). Acquired during commit phase.
-- **task locks**: Per-task lock to prevent concurrent work on same task. Acquired at start of claim/submit/approve/reject.
-- **claim.lock**: Optional global lock to serialize claims (prevents race when multiple agents claim simultaneously).
-
-All locks use exclusive file creation (create_new) and contain JSON metadata for debugging stale locks.
+- Claim: task is READY, deps satisfied, no lock conflicts
+- Submit: scope + stub validation (diff-based)
+- Validate: scope + stubs + optional build/test commands (config-driven)
+- Approve: rebase to main, rerun validation, fast-forward merge, then DONE
 
 ## Testing
 
-Most modules have `#[cfg(test)] mod tests` with unit tests. Integration tests use `test_support::create_test_repo()` to create temporary git repos. Commands validate behavior with mock git repos.
+- Unit tests live alongside modules (`#[cfg(test)]`).
+- Integration tests use `src/test_support.rs` to create temporary git repos.

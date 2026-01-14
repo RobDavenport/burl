@@ -2,9 +2,16 @@
 
 This repo is the standalone home for the `burl` tool/spec.
 
+## TL;DR
+
+- Start with `burl.md` (spec) and `ARCHITECTURE.md` (code map).
+- Keep validation gates deterministic and diff-based (no model self-judging).
+- Prefer `cargo fmt && cargo test && cargo clippy --all-targets -- -D warnings` as the mechanical gate.
+
 ## Key Docs
 
 - PRD / source of truth: `burl.md`
+- Architecture map: `ARCHITECTURE.md`
 - Roadmap: `ROADMAP.md`
 - Implementation task breakdown: `tasks/README.md`
 
