@@ -166,7 +166,8 @@ fn code() {
 #[test]
 fn test_parse_windows_crlf_line_endings() {
     // Create content with Windows CRLF line endings
-    let content = "---\r\nid: TASK-001\r\ntitle: Test task\r\n---\r\n\r\n## Objective\r\nDo something.\r\n";
+    let content =
+        "---\r\nid: TASK-001\r\ntitle: Test task\r\n---\r\n\r\n## Objective\r\nDo something.\r\n";
 
     let task = TaskFile::parse(content).unwrap();
     assert_eq!(task.frontmatter.id, "TASK-001");

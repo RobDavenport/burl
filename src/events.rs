@@ -61,6 +61,10 @@ pub enum EventAction {
     LockClear,
     /// Cleanup operation
     Clean,
+    /// Agent dispatch started (V2)
+    AgentDispatch,
+    /// Agent execution completed (V2)
+    AgentComplete,
 }
 
 impl std::fmt::Display for EventAction {
@@ -75,6 +79,8 @@ impl std::fmt::Display for EventAction {
             EventAction::Reject => write!(f, "reject"),
             EventAction::LockClear => write!(f, "lock_clear"),
             EventAction::Clean => write!(f, "clean"),
+            EventAction::AgentDispatch => write!(f, "agent_dispatch"),
+            EventAction::AgentComplete => write!(f, "agent_complete"),
         }
     }
 }
@@ -471,6 +477,8 @@ mod tests {
         assert_eq!(format!("{}", EventAction::Reject), "reject");
         assert_eq!(format!("{}", EventAction::LockClear), "lock_clear");
         assert_eq!(format!("{}", EventAction::Clean), "clean");
+        assert_eq!(format!("{}", EventAction::AgentDispatch), "agent_dispatch");
+        assert_eq!(format!("{}", EventAction::AgentComplete), "agent_complete");
     }
 
     #[test]

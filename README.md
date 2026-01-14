@@ -41,6 +41,24 @@ burl approve TASK-001
 burl reject TASK-001 --reason "Scope exceeded; touched src/net/**" # may move to BLOCKED if max attempts reached
 ```
 
+## Agent dispatch (V2)
+
+```bash
+# list configured agents
+burl agent list
+
+# dispatch an agent to work on a claimed task
+burl agent run TASK-001
+
+# use a specific agent (overrides task/default assignment)
+burl agent run TASK-001 --agent claude-code
+
+# preview what would run without executing
+burl agent run TASK-001 --dry-run
+```
+
+Requires `.burl/.workflow/agents.yaml` and a task in the `DOING` bucket (claimed with `burl claim`).
+
 ## Live dashboard + automation
 
 ```bash
@@ -52,6 +70,9 @@ burl watch
 
 # also auto-approve QA tasks (runs validations via approve)
 burl watch --approve
+
+# fully automated: claim, dispatch agents, and validate/approve
+burl watch --dispatch --approve
 ```
 
 ## Files and folders
@@ -63,6 +84,9 @@ Default layout:
   .workflow/
     READY/ DOING/ QA/ DONE/ BLOCKED/
     config.yaml
+    agents.yaml        # agent configuration (V2)
+    prompts/           # generated agent prompts (V2)
+    agent-logs/        # agent stdout/stderr (V2, untracked)
     events/events.ndjson
     locks/             # untracked, machine-local
 
@@ -80,6 +104,47 @@ Common knobs:
 - `stub_patterns`, `stub_check_extensions`
 - `merge_strategy`, `conflict_policy`
 - `workflow_auto_commit`, `workflow_auto_push`
+
+## Agent configuration
+
+Create `.burl/.workflow/agents.yaml` to configure agent profiles:
+
+```yaml
+agents:
+  claude-code:
+    name: "Claude Code CLI"
+    command: "claude -p \"{prompt_file}\""
+    timeout_seconds: 600
+    default: true
+
+  crush:
+    name: "Crush"
+    command: "crush run --task \"{task_file}\" --prompt \"{prompt_file}\""
+    timeout_seconds: 1800
+    capabilities: [multi-file, refactoring]
+
+defaults:
+  timeout_seconds: 600
+  prompt_template: default
+
+prompt_templates:
+  default: |
+    # Task: {title}
+    ## Objective
+    {objective}
+    ## Acceptance Criteria
+    {acceptance_criteria}
+```
+
+Note: commands are split using shell-style quoting. Quote placeholders like `"{prompt_file}"` if paths may contain spaces.
+
+Template variables available in commands and prompts:
+- Identity: `{task_id}`, `{title}`, `{priority}`
+- Paths: `{prompt_file}`, `{task_file}`, `{worktree}`
+- Scope: `{affects}`, `{affects_globs}`, `{must_not_touch}`
+- Git/worktree: `{branch}`, `{base_sha}`
+- Task metadata: `{tags}`, `{depends_on}`
+- Task body sections: `{objective}`, `{acceptance_criteria}`, `{context}`, `{implementation_notes}`, `{test_plan}`, `{body}`
 
 ## Development
 

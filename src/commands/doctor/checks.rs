@@ -1,7 +1,7 @@
 //! Health check functions for the doctor command.
 
-use crate::context::WorkflowContext;
 use crate::config::Config;
+use crate::context::WorkflowContext;
 use crate::error::Result;
 use crate::git_worktree::{branch_exists, list_worktrees};
 use crate::locks;
@@ -13,10 +13,7 @@ use std::path::PathBuf;
 use super::{DoctorReport, Issue, IssueSeverity};
 
 /// Check for missing directories (locks/, events/).
-pub fn check_missing_directories(
-    ctx: &WorkflowContext,
-    report: &mut DoctorReport,
-) -> Result<()> {
+pub fn check_missing_directories(ctx: &WorkflowContext, report: &mut DoctorReport) -> Result<()> {
     // Check locks directory
     if !ctx.locks_dir.exists() {
         report.issues.push(
@@ -200,10 +197,7 @@ pub fn check_tasks_missing_worktree(
 }
 
 /// Check for orphan worktrees under .worktrees/ not referenced by any task.
-pub fn check_orphan_worktrees(
-    ctx: &WorkflowContext,
-    report: &mut DoctorReport,
-) -> Result<()> {
+pub fn check_orphan_worktrees(ctx: &WorkflowContext, report: &mut DoctorReport) -> Result<()> {
     // Get all worktrees from git
     let worktrees = match list_worktrees(&ctx.repo_root) {
         Ok(wts) => wts,
@@ -271,10 +265,7 @@ pub fn check_orphan_worktrees(
 }
 
 /// Check for tasks that reference a branch that does not exist locally.
-pub fn check_tasks_missing_branch(
-    ctx: &WorkflowContext,
-    report: &mut DoctorReport,
-) -> Result<()> {
+pub fn check_tasks_missing_branch(ctx: &WorkflowContext, report: &mut DoctorReport) -> Result<()> {
     let index = TaskIndex::build(ctx)?;
 
     for task_info in index.all_tasks() {

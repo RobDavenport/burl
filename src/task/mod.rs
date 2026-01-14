@@ -142,6 +142,14 @@ pub struct TaskFrontmatter {
     pub tags: Vec<String>,
 
     // =========================================================================
+    // Agent assignment (V2)
+    // =========================================================================
+    /// Agent profile to use for this task (V2).
+    /// If not set, the default agent from agents.yaml is used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+
+    // =========================================================================
     // Unknown fields (forward compatibility)
     // =========================================================================
     /// Any fields not explicitly defined above.
@@ -174,6 +182,7 @@ impl Default for TaskFrontmatter {
             must_not_touch: Vec::new(),
             depends_on: Vec::new(),
             tags: Vec::new(),
+            agent: None,
             extra: BTreeMap::new(),
         }
     }

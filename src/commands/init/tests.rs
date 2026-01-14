@@ -3,7 +3,7 @@
 use super::*;
 use crate::context::WorkflowContext;
 use crate::git::run_git;
-use crate::test_support::{create_test_repo, DirGuard};
+use crate::test_support::{DirGuard, create_test_repo};
 use serial_test::serial;
 
 use super::git_ops::*;
@@ -109,6 +109,7 @@ fn test_create_workflow_structure() {
     assert!(gitignore_path.exists());
     let gitignore_content = std::fs::read_to_string(&gitignore_path).unwrap();
     assert!(gitignore_content.contains("locks/"));
+    assert!(gitignore_content.contains("agent-logs/"));
 }
 
 #[test]

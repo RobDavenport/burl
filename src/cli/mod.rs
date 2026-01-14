@@ -110,6 +110,11 @@ pub enum Command {
     /// (Alias: `visualizer`)
     #[command(alias = "visualizer", alias = "viz", alias = "dashboard")]
     Monitor(MonitorArgs),
+
+    /// Agent execution commands (V2).
+    ///
+    /// Dispatch agents to work on tasks or list configured agents.
+    Agent(AgentCommand),
 }
 
 /// Arguments for the `add` command.
@@ -275,6 +280,10 @@ pub struct WatchArgs {
     #[arg(long)]
     pub approve: bool,
 
+    /// When set, auto-dispatch agents for newly claimed tasks (V2).
+    #[arg(long)]
+    pub dispatch: bool,
+
     /// Run a single iteration and exit.
     #[arg(long)]
     pub once: bool,
@@ -302,6 +311,43 @@ pub struct MonitorArgs {
     /// Show the last N events from the audit log (0 disables).
     #[arg(long, default_value_t = 10)]
     pub tail: usize,
+}
+
+/// Agent subcommands (V2).
+#[derive(Parser, Debug)]
+pub struct AgentCommand {
+    #[command(subcommand)]
+    pub action: AgentAction,
+}
+
+/// Available agent actions.
+#[derive(Subcommand, Debug)]
+pub enum AgentAction {
+    /// Run an agent on a task.
+    ///
+    /// Dispatches the configured agent to execute the task.
+    /// The task must be in the DOING bucket with a worktree.
+    Run(AgentRunArgs),
+
+    /// List configured agents.
+    ///
+    /// Shows all agent profiles from agents.yaml.
+    List,
+}
+
+/// Arguments for the `agent run` command.
+#[derive(Parser, Debug)]
+pub struct AgentRunArgs {
+    /// Task ID to run the agent on.
+    pub task_id: String,
+
+    /// Override the task's assigned agent with a specific agent.
+    #[arg(long)]
+    pub agent: Option<String>,
+
+    /// Show the command that would be executed without running it.
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 impl Cli {

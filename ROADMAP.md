@@ -2,7 +2,7 @@
 
 This document tracks what `burl` supports today and where it’s heading next.
 
-## Current features (V1)
+## Current features (V1 + V2 Agent Core)
 
 - **File/folder workflow state** in a canonical worktree: `.burl/.workflow/{READY,DOING,QA,DONE,BLOCKED}`
 - **Bootstrap / idempotent init**: `burl init` creates the workflow branch/worktree and scaffolding
@@ -18,10 +18,16 @@ This document tracks what `burl` supports today and where it’s heading next.
 - **Maintenance tools**: `burl doctor` (diagnostics/repairs) and `burl clean` (worktree cleanup)
 - **Automation loop**: `burl watch` to auto-claim and process QA
 - **TUI / dashboard**: `burl monitor` (alias: `visualizer`)
+- **Agent execution** (V2):
+  - `agents.yaml` configuration with agent profiles, timeouts, environment, capabilities
+  - Template-based prompt generation from task context
+  - Subprocess execution with timeout and output capture (machine-local logs)
+  - `burl agent run` / `burl agent list` commands
+  - `burl watch --dispatch` for fully automated claim→dispatch→validate→approve loops
+  - Event logging for agent dispatch/completion
 
 ## Future features (V2+)
 
-- **Agent execution config**: formalize `agents.yaml` (still deterministic gating; no “self-judging”)
 - **Richer validation pipeline**: multi-step validation profiles, per-language hooks, output summarization
 - **Smarter conflict detection**: detect overlap via actual diffs/paths, not only declared scopes
 - **Workflow layout migration**: safely move/rename workflow branch/worktree via config + migration tooling

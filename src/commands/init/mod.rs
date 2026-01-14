@@ -23,9 +23,9 @@ mod worktree;
 mod tests;
 
 use crate::config::Config;
-use crate::context::{resolve_context, DEFAULT_WORKFLOW_BRANCH};
+use crate::context::{DEFAULT_WORKFLOW_BRANCH, resolve_context};
 use crate::error::Result;
-use crate::events::{append_event, Event, EventAction};
+use crate::events::{Event, EventAction, append_event};
 use crate::locks;
 use serde_json::json;
 

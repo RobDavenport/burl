@@ -44,6 +44,27 @@ pub(crate) fn create_test_repo_with_remote() -> TempDir {
     })
 }
 
+/// Create a temporary directory that is *not* inside any git worktree.
+///
+/// Some tests assert that "not in a git repo" produces a UserError. Those tests
+/// should not depend on the environment's TMPDIR (which may itself be located
+/// inside a git repo).
+pub(crate) fn create_non_repo_dir() -> TempDir {
+    for root in candidate_temp_roots() {
+        if !root.is_dir() {
+            continue;
+        }
+        if let Ok(dir) = TempDir::new_in(&root) {
+            if !is_inside_git_repo(dir.path()) {
+                return dir;
+            }
+        }
+    }
+
+    // Best-effort fallback.
+    TempDir::new().unwrap()
+}
+
 struct CreateRepoOptions {
     commits: usize,
     add_origin_remote: bool,
@@ -101,4 +122,35 @@ fn git(repo_dir: &Path, args: &[&str]) {
             stderr
         );
     }
+}
+
+fn is_inside_git_repo(dir: &Path) -> bool {
+    Command::new("git")
+        .current_dir(dir)
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .is_ok_and(|out| out.status.success())
+}
+
+fn candidate_temp_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    roots.push(std::env::temp_dir());
+
+    if cfg!(unix) {
+        roots.push(PathBuf::from("/tmp"));
+        roots.push(PathBuf::from("/var/tmp"));
+    }
+
+    if let Some(home) = std::env::var_os("HOME") {
+        roots.push(PathBuf::from(home));
+    }
+
+    if let Some(userprofile) = std::env::var_os("USERPROFILE") {
+        roots.push(PathBuf::from(userprofile));
+    }
+
+    roots.sort();
+    roots.dedup();
+    roots
 }

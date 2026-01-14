@@ -230,6 +230,35 @@ impl WorkflowContext {
     pub fn claim_lock_path(&self) -> PathBuf {
         self.locks_dir.join("claim.lock")
     }
+
+    // =========================================================================
+    // Agent-related paths (V2)
+    // =========================================================================
+
+    /// Get the path to the agents configuration file.
+    pub fn agents_config_path(&self) -> PathBuf {
+        self.workflow_state_dir.join("agents.yaml")
+    }
+
+    /// Get the path to the prompts directory.
+    pub fn prompts_dir(&self) -> PathBuf {
+        self.workflow_state_dir.join("prompts")
+    }
+
+    /// Get the path to a specific prompt file.
+    pub fn prompt_file_path(&self, task_id: &str) -> PathBuf {
+        self.prompts_dir().join(format!("{}.md", task_id))
+    }
+
+    /// Get the path to the agent logs directory.
+    pub fn agent_logs_dir(&self) -> PathBuf {
+        self.workflow_state_dir.join("agent-logs")
+    }
+
+    /// Get the path to a specific task's agent log directory.
+    pub fn task_agent_logs_dir(&self, task_id: &str) -> PathBuf {
+        self.agent_logs_dir().join(task_id)
+    }
 }
 
 /// Convenience function to resolve context and ensure workflow is initialized.
@@ -252,9 +281,8 @@ pub fn resolve_context() -> Result<WorkflowContext> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::create_test_repo;
+    use crate::test_support::{create_non_repo_dir, create_test_repo};
     use std::process::Command;
-    use tempfile::TempDir;
 
     #[test]
     fn test_resolve_from_repo_root() {
@@ -288,7 +316,7 @@ mod tests {
 
     #[test]
     fn test_resolve_outside_repo_fails() {
-        let temp_dir = TempDir::new().unwrap(); // Not a git repo
+        let temp_dir = create_non_repo_dir(); // Not a git repo
         let result = WorkflowContext::resolve_from(temp_dir.path());
 
         assert!(result.is_err());

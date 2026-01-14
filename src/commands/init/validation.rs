@@ -3,7 +3,7 @@
 //! Ensures that if `.burl` already exists, it's a valid git worktree
 //! and is checked out to the correct workflow branch.
 
-use crate::context::{WorkflowContext, DEFAULT_WORKFLOW_BRANCH};
+use crate::context::{DEFAULT_WORKFLOW_BRANCH, WorkflowContext};
 use crate::error::{BurlError, Result};
 use crate::git::run_git;
 use std::fs;

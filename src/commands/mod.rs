@@ -4,6 +4,7 @@
 //! implementations.
 
 pub mod add;
+pub mod agent;
 pub mod approve;
 pub mod claim;
 pub mod clean;
@@ -19,8 +20,8 @@ pub mod watch;
 mod worktree;
 
 use crate::cli::{
-    ApproveArgs, ClaimArgs, CleanArgs, Command, DoctorArgs, LockAction, LockClearArgs, LockCommand,
-    MonitorArgs, RejectArgs, SubmitArgs, ValidateArgs, WatchArgs,
+    AgentAction, AgentCommand, ApproveArgs, ClaimArgs, CleanArgs, Command, DoctorArgs, LockAction,
+    LockClearArgs, LockCommand, MonitorArgs, RejectArgs, SubmitArgs, ValidateArgs, WatchArgs,
 };
 use crate::config::Config;
 use crate::context::require_initialized_workflow;
@@ -50,6 +51,7 @@ pub fn dispatch(command: Command) -> Result<()> {
         Command::Clean(args) => cmd_clean(args),
         Command::Watch(args) => cmd_watch(args),
         Command::Monitor(args) => cmd_monitor(args),
+        Command::Agent(agent_cmd) => dispatch_agent(agent_cmd),
     }
 }
 
@@ -58,6 +60,14 @@ fn dispatch_lock(lock_cmd: LockCommand) -> Result<()> {
     match lock_cmd.action {
         LockAction::List => cmd_lock_list(),
         LockAction::Clear(args) => cmd_lock_clear(args),
+    }
+}
+
+/// Dispatch agent subcommands.
+fn dispatch_agent(agent_cmd: AgentCommand) -> Result<()> {
+    match agent_cmd.action {
+        AgentAction::Run(args) => agent::cmd_agent_run(args),
+        AgentAction::List => agent::cmd_agent_list(),
     }
 }
 

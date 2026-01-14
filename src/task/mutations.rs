@@ -77,4 +77,14 @@ impl TaskFile {
     pub fn clear_assigned(&mut self) {
         self.frontmatter.assigned_to = None;
     }
+
+    /// Set the agent profile for this task (V2).
+    pub fn set_agent(&mut self, agent_name: &str) {
+        self.frontmatter.agent = Some(agent_name.to_string());
+    }
+
+    /// Clear the agent assignment.
+    pub fn clear_agent(&mut self) {
+        self.frontmatter.agent = None;
+    }
 }

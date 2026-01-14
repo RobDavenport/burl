@@ -123,9 +123,11 @@ V1 is “done” when:
     DONE/
     BLOCKED/
     locks/                 # untracked, machine-local
+    agent-logs/            # untracked, machine-local
     events/                # tracked (NDJSON), append-only
     config.yaml
-    agents.yaml
+    agents.yaml            # tracked (agent profiles)
+    prompts/               # tracked (generated agent prompts)
 
 .worktrees/
   task-001-<slug>/
@@ -134,6 +136,7 @@ V1 is “done” when:
 
 - `.burl/` is the only location `burl` reads/writes workflow state. Commands may be invoked from any directory/worktree; the tool resolves the repo root and then targets `.burl/.workflow/`.
 - `locks/` is intentionally **not** committed (locks are machine-local and would cause “phantom” locks when moving machines).
+- `agent-logs/` is intentionally **not** committed (stdout/stderr can be large and machine-local).
 - `events/` is committed (audit/recovery across machines). See “Logging & Observability”.
 
 ### 7.2 “Filesystem is truth” principle
@@ -159,6 +162,7 @@ created: 2026-01-13T10:00:00Z
 
 # Ownership/attempts
 assigned_to: null
+agent: null         # optional (V2); overrides default agent from agents.yaml
 qa_attempts: 0
 
 # Lifecycle timestamps
@@ -269,7 +273,46 @@ conflict_policy: fail            # fail | warn | ignore
 
 #### `.burl/.workflow/agents.yaml` (V2; optional in V1; default layout)
 
-May exist in V1 but execution is not required for the core tool. Keep it stable for future automation.
+Defines agent profiles used by `burl agent run` and `burl watch --dispatch`.
+
+Example:
+
+```yaml
+agents:
+  claude-code:
+    name: "Claude Code CLI"
+    command: "claude -p \"{prompt_file}\""
+    timeout_seconds: 600
+    default: true
+
+defaults:
+  timeout_seconds: 600
+  prompt_template: default
+
+prompt_templates:
+  default: |
+    # Task: {title}
+    ## Objective
+    {objective}
+    ## Acceptance Criteria
+    {acceptance_criteria}
+```
+
+Resolution order:
+1. If the task frontmatter sets `agent: <id>`, use that agent.
+2. Otherwise, use the agent marked `default: true`.
+
+Template variables available in `command` and `prompt_templates`:
+- `task_id`, `title`, `priority`
+- `prompt_file`, `task_file`, `worktree`
+- `affects`, `affects_globs`, `must_not_touch`
+- `branch`, `base_sha`
+- `tags`, `depends_on`
+- `objective`, `acceptance_criteria`, `context`, `implementation_notes`, `test_plan`, `body`
+
+Notes:
+- Commands are split using shell-style quoting; quote placeholders like `"{prompt_file}"` if paths may contain spaces.
+- Prompts are written under `.burl/.workflow/prompts/`. Agent stdout/stderr are written under `.burl/.workflow/agent-logs/` (untracked by default).
 
 ---
 
@@ -560,7 +603,7 @@ If `build_command` is non-empty:
   - create or attach the canonical workflow worktree (default: `.burl/` on branch `burl`)
   - create `.burl/.workflow/` buckets, `locks/`, `events/`, default config templates
   - ensure `.burl/.workflow/locks/` is untracked (gitignored) and exists locally
-  - write `.burl/.workflow/.gitignore` with `locks/` so locks never get committed
+  - write `.burl/.workflow/.gitignore` with `locks/` and `agent-logs/` so machine-local files never get committed
   - create `.worktrees/` directory (local, untracked)
   - commit initial workflow scaffolding to the workflow branch (if enabled)
   - (recommended) add `.burl/` and `.worktrees/` to `.git/info/exclude` so `git status` stays clean without touching `main`
@@ -588,6 +631,15 @@ If `build_command` is non-empty:
 - `burl worktree TASK-ID`
   - prints recorded worktree path
 
+#### Agent execution (optional, V2)
+- `burl agent list`
+  - list configured agent profiles from `.burl/.workflow/agents.yaml`
+
+- `burl agent run TASK-ID [--agent <id>] [--dry-run]`
+  - generates a prompt under `.burl/.workflow/prompts/`
+  - executes the configured agent command in the task worktree
+  - captures stdout/stderr under `.burl/.workflow/agent-logs/TASK-001/`
+
 #### QA operations
 - `burl validate TASK-ID`
   - runs: scope + stub + build/test
@@ -604,6 +656,8 @@ If `build_command` is non-empty:
 #### Automation (optional)
 - `burl watch`                           # auto-claim READY tasks and process QA tasks
 - `burl watch --approve`                 # also auto-approve passing QA tasks
+- `burl watch --dispatch`                # auto-dispatch agents for DOING tasks (requires agents.yaml)
+- `burl watch --dispatch --approve`      # fully automated claim→dispatch→validate→approve loop
 - `burl monitor`                         # lightweight dashboard (aliases: `visualizer`, `viz`, `dashboard`)
 
 #### Locks & recovery
@@ -718,7 +772,7 @@ If `build_command` is non-empty:
 
 ## 15. Logging & Observability
 
-All logs live under the workflow state directory (`.burl/.workflow/` by default) and are committed to the workflow branch so they travel with the workflow when moving machines.
+Durable logs live under the workflow state directory (`.burl/.workflow/` by default) and are committed to the workflow branch so they travel with the workflow when moving machines. Machine-local artifacts like `locks/` and `agent-logs/` are intentionally untracked.
 
 ### 15.1 Event log format (NDJSON)
 
@@ -730,7 +784,7 @@ Example record:
 {"ts":"2026-01-13T10:35:11Z","task":"TASK-001","action":"claim","actor":"robert@HOST","details":{"branch":"task-001-player-jump","worktree":".worktrees/task-001-player-jump","base_sha":"abc123"}}
 ```
 
-### 15.2 What must be logged (V1)
+### 15.2 What must be logged
 - init
 - add
 - claim
@@ -738,6 +792,8 @@ Example record:
 - validate (pass/fail + summary)
 - approve
 - reject
+- agent_dispatch
+- agent_complete
 - lock clear
 - clean
 
@@ -783,7 +839,7 @@ src/player/jump.rs:45  + // TODO: implement cooldown
 ## 17. Security & Safety Considerations
 
 - Path traversal: task IDs and filenames must be sanitized; never allow `../` paths.
-- Command execution: if/when agent commands exist (V2), arguments must be templated safely; avoid shell injection by using argv arrays where possible.
+- Agent command execution: treat `agents.yaml` as trusted configuration; prefer direct argv-style commands over `sh -c`, and quote placeholders like `"{prompt_file}"` to avoid accidental argument splitting.
 - Never run destructive git commands without explicit flags (`--force`, `--prune`, etc.).
 
 ---
@@ -826,8 +882,8 @@ src/player/jump.rs:45  + // TODO: implement cooldown
 10. **events log** + `clean` + lock tools  
 11. **optional utilities**: `watch` automation loop + `monitor` dashboard
 
-### V2 (post-V1)
-- `agents.yaml` execution + prompt generation
+### V2 (current)
+- `agents.yaml` execution + prompt generation (`burl agent …`, `burl watch --dispatch`)
 - more advanced conflict detection (actual diffs between tasks, not just declared overlaps)
 - PR integration (GitHub/GitLab)
 

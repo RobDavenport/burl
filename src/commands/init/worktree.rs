@@ -3,7 +3,7 @@
 //! Handles creating or attaching the workflow worktree,
 //! checking for existing branches, and getting the current branch.
 
-use crate::context::{WorkflowContext, DEFAULT_WORKFLOW_BRANCH};
+use crate::context::{DEFAULT_WORKFLOW_BRANCH, WorkflowContext};
 use crate::error::{BurlError, Result};
 use crate::git::run_git;
 

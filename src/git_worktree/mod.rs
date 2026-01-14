@@ -25,6 +25,6 @@ pub use naming::{task_branch_name, task_worktree_path};
 pub use remote::{fetch_main, get_base_sha};
 pub use verification::{get_current_branch, verify_worktree_branch};
 pub use worktree::{
-    create_worktree, find_worktree_for_branch, list_worktrees, setup_task_worktree,
-    ExistingWorktree, WorktreeInfo,
+    ExistingWorktree, WorktreeInfo, create_worktree, find_worktree_for_branch, list_worktrees,
+    setup_task_worktree,
 };

@@ -4,6 +4,7 @@
 //! dispatches to the appropriate command handler, and handles errors with
 //! proper exit codes.
 
+pub mod agent;
 mod cli;
 mod commands;
 pub mod config;

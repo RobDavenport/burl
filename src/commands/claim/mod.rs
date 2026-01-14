@@ -21,12 +21,12 @@
 //! If worktree creation fails after branch creation, delete the branch if it
 //! was created in this attempt.
 
-mod selection;
-mod scope;
-mod transaction;
 mod helpers;
+mod scope;
+mod selection;
 #[cfg(test)]
 mod tests;
+mod transaction;
 
 use crate::cli::ClaimArgs;
 use crate::config::Config;
@@ -40,10 +40,10 @@ use crate::workflow::{TaskIndex, slugify_title, validate_task_id};
 use chrono::Utc;
 use serde_json::json;
 
-use selection::{select_next_task_id, check_dependencies_satisfied};
+use helpers::{commit_claim, get_assignee_string, push_workflow_branch};
 use scope::check_scope_conflicts;
+use selection::{check_dependencies_satisfied, select_next_task_id};
 use transaction::ClaimTransaction;
-use helpers::{get_assignee_string, commit_claim, push_workflow_branch};
 
 /// Execute the `burl claim` command.
 ///

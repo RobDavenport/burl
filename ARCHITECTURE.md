@@ -29,6 +29,7 @@ Most commands follow the same shape:
 | Understand workflow buckets/indexing | `src/workflow.rs` |
 | Understand locks + stale lock behavior | `src/locks/` |
 | Understand branch/worktree naming | `src/git_worktree/naming.rs` |
+| Understand agent execution | `src/agent/`, `src/commands/agent.rs`, `src/commands/watch.rs` |
 | Change validation gates | `src/validate/` |
 | Change audit/event logging | `src/events.rs` |
 | Change exit code mapping | `src/exit_codes.rs`, `src/error.rs` |
@@ -63,10 +64,17 @@ Most commands follow the same shape:
   - `scope` — enforce `affects`/`affects_globs` and `must_not_touch`
   - `stubs` — detect incomplete code patterns in **added lines only**
 
+### Agent execution (V2)
+
+- `src/agent/config.rs` — parses `.burl/.workflow/agents.yaml` (profiles, defaults, prompt templates).
+- `src/agent/prompt/` — task context extraction + prompt generation.
+- `src/agent/dispatch/` — subprocess execution with timeout + output capture.
+
 ### Commands
 
 - `src/commands/` — one module per command; `src/commands/mod.rs` dispatches from the CLI.
   - Lifecycle: `init`, `claim`, `submit`, `validate_cmd`, `approve`, `reject`
+  - Agents: `agent` (manual dispatch), `watch --dispatch` (automation)
   - Ops/UX: `status`, `show`, `worktree`, `lock`, `doctor`, `clean`, `watch`, `monitor`
 
 ### Support
@@ -102,6 +110,7 @@ Core fields:
 - Assignment: `assigned_to`, `qa_attempts`, `depends_on`
 - Git metadata: `branch`, `worktree`, `base_sha`
 - Validation: `affects`, `affects_globs`, `must_not_touch`
+- Agent assignment: `agent`
 - Forward compatibility: `extra` (unknown fields preserved)
 
 ### `TaskIndex` (`src/workflow.rs`)
@@ -125,8 +134,11 @@ All workflow state lives under the workflow worktree (default `.burl/`):
 
 - Buckets: `.burl/READY/`, `.burl/DOING/`, `.burl/QA/`, `.burl/DONE/`, `.burl/BLOCKED/`
 - Config (committed): `.burl/.workflow/config.yaml`
+- Agents config (committed): `.burl/.workflow/agents.yaml`
+- Prompts (committed): `.burl/.workflow/prompts/*.md`
 - Events (committed): `.burl/.workflow/events/events.ndjson`
 - Locks (untracked): `.burl/.workflow/locks/*.lock`
+- Agent logs (untracked): `.burl/.workflow/agent-logs/<TASK-ID>/{stdout.log,stderr.log}`
 - Task worktrees (untracked): `{repo_root}/.worktrees/task-<NNN>-<slug>/`
 
 ## Naming + invariants

@@ -52,10 +52,36 @@ pub(super) fn create_workflow_structure(ctx: &WorkflowContext) -> Result<()> {
 
     // Create .gitignore in .workflow to ignore locks/
     let gitignore_path = ctx.workflow_state_dir.join(".gitignore");
-    if !gitignore_path.exists() {
+    let required_entries = ["locks/", "agent-logs/"];
+    let existing = std::fs::read_to_string(&gitignore_path).unwrap_or_default();
+    let mut missing_entries = Vec::new();
+    for entry in required_entries {
+        if !existing.lines().any(|line| line.trim() == entry) {
+            missing_entries.push(entry);
+        }
+    }
+    if gitignore_path.exists() && missing_entries.is_empty() {
+        // Nothing to do.
+    } else if gitignore_path.exists() {
+        let mut new_content = existing;
+        if !new_content.is_empty() && !new_content.ends_with('\n') {
+            new_content.push('\n');
+        }
+        if !new_content.contains("# Machine-local files") {
+            if !new_content.is_empty() {
+                new_content.push('\n');
+            }
+            new_content.push_str("# Machine-local files (never commit)\n");
+        }
+        for entry in missing_entries {
+            new_content.push_str(entry);
+            new_content.push('\n');
+        }
+        atomic_write_file(&gitignore_path, &new_content)?;
+    } else {
         atomic_write_file(
             &gitignore_path,
-            "# Local lock files (machine-specific, never commit)\nlocks/\n",
+            "# Machine-local files (never commit)\nlocks/\nagent-logs/\n",
         )?;
     }
 

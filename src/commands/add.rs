@@ -94,6 +94,7 @@ pub fn cmd_add(args: AddArgs) -> Result<()> {
         must_not_touch: args.must_not_touch,
         depends_on: args.depends_on,
         tags: args.tags,
+        agent: None,
         extra: Default::default(),
     };
 

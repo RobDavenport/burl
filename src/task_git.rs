@@ -314,7 +314,13 @@ mod tests {
         let ctx = WorkflowContext::resolve_from(temp_dir.path()).unwrap();
         let branch = "task-001-test";
 
+        // Use platform-appropriate absolute path
+        // On Windows, paths without a drive letter like "/some/..." are not truly absolute
+        #[cfg(windows)]
+        let recorded = PathBuf::from("C:/some/other/root/.worktrees/task-001-test");
+        #[cfg(not(windows))]
         let recorded = PathBuf::from("/some/other/root/.worktrees/task-001-test");
+
         let resolved =
             resolve_task_worktree_path(&ctx, &recorded.to_string_lossy(), branch).unwrap();
         assert_eq!(resolved, ctx.worktrees_dir.join(branch));

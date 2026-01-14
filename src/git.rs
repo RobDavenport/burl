@@ -245,8 +245,7 @@ pub fn ensure_workflow_worktree_clean<P: AsRef<Path>>(workflow_worktree: P) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::create_test_repo;
-    use tempfile::TempDir;
+    use crate::test_support::{create_non_repo_dir, create_test_repo};
 
     #[test]
     fn test_run_git_success() {
@@ -301,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_get_repo_root_outside_repo_returns_user_error() {
-        let temp_dir = TempDir::new().unwrap(); // Not a git repo
+        let temp_dir = create_non_repo_dir(); // Not a git repo
         let result = get_repo_root(temp_dir.path());
         assert!(result.is_err());
         let err = result.unwrap_err();

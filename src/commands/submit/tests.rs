@@ -7,7 +7,7 @@ use crate::commands::claim::cmd_claim;
 use crate::commands::init::cmd_init;
 use crate::exit_codes;
 use crate::task::TaskFile;
-use crate::test_support::{create_test_repo_with_remote, DirGuard};
+use crate::test_support::{DirGuard, create_test_repo_with_remote};
 use serial_test::serial;
 use std::process::Command;
 

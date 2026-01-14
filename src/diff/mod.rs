@@ -20,4 +20,4 @@ mod parser;
 mod tests;
 
 // Re-export public API
-pub use api::{added_lines, changed_files, AddedLine};
+pub use api::{AddedLine, added_lines, changed_files};

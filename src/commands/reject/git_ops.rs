@@ -41,7 +41,10 @@ pub(super) fn commit_reject(
 }
 
 /// Push the workflow branch to the remote.
-pub(super) fn push_workflow_branch(ctx: &crate::context::WorkflowContext, config: &Config) -> Result<()> {
+pub(super) fn push_workflow_branch(
+    ctx: &crate::context::WorkflowContext,
+    config: &Config,
+) -> Result<()> {
     run_git(
         &ctx.workflow_worktree,
         &["push", &config.remote, &config.workflow_branch],

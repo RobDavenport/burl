@@ -18,7 +18,11 @@ pub fn get_assignee_string() -> String {
 }
 
 /// Commit the claim to the workflow branch.
-pub fn commit_claim(ctx: &crate::context::WorkflowContext, task_id: &str, title: &str) -> Result<()> {
+pub fn commit_claim(
+    ctx: &crate::context::WorkflowContext,
+    task_id: &str,
+    title: &str,
+) -> Result<()> {
     // Stage all changes in the workflow worktree
     run_git(&ctx.workflow_worktree, &["add", "."])
         .map_err(|e| BurlError::GitError(format!("failed to stage claim changes: {}", e)))?;

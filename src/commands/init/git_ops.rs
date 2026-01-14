@@ -3,7 +3,7 @@
 //! Handles committing the workflow structure and pushing to the remote.
 
 use crate::config::Config;
-use crate::context::{WorkflowContext, DEFAULT_WORKFLOW_BRANCH};
+use crate::context::{DEFAULT_WORKFLOW_BRANCH, WorkflowContext};
 use crate::error::{BurlError, Result};
 use crate::git::run_git;
 
