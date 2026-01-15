@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "burl-plugins",
+  "version": "1.0.0",
+  "description": "File-based workflow orchestrator for agentic AI development",
+  "owner": {
+    "name": "SpecCade Dev",
+    "email": "speccade@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "burl",
+      "description": "Claude Code integration for Burl - workflow knowledge, task planning, and scope-aware assistance",
+      "version": "1.0.0",
+      "author": {
+        "name": "SpecCade Dev",
+        "email": "speccade@gmail.com"
+      },
+      "source": "./claude-plugin",
+      "category": "productivity"
+    }
+  ]
+}
