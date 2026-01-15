@@ -231,9 +231,7 @@ impl WorkflowContext {
         self.locks_dir.join("claim.lock")
     }
 
-    // =========================================================================
-    // Agent-related paths (V2)
-    // =========================================================================
+    // Agent-related paths
 
     /// Get the path to the agents configuration file.
     pub fn agents_config_path(&self) -> PathBuf {

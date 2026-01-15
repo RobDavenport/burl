@@ -162,7 +162,8 @@ created: 2026-01-13T10:00:00Z
 
 # Ownership/attempts
 assigned_to: null
-agent: null         # optional (V2); overrides default agent from agents.yaml
+agent: null         # optional; overrides default agent from agents.yaml
+validation_profile: null # optional; overrides default_validation_profile from config.yaml
 qa_attempts: 0
 
 # Lifecycle timestamps
@@ -248,6 +249,22 @@ auto_priority_boost_on_retry: true
 # Validation hooks
 build_command: "cargo test"      # empty string disables build/test validation
 
+# Validation pipeline (optional)
+# If a task sets `validation_profile`, that wins.
+# Otherwise, `default_validation_profile` (if set) is used.
+# When a profile is selected, its `steps` replace `build_command`.
+#
+# default_validation_profile: rust
+# validation_profiles:
+#   rust:
+#     steps:
+#       - name: fmt
+#         command: cargo fmt --all -- --check
+#         run_if_changed_extensions: [rs]
+#       - name: test
+#         command: cargo test
+#         run_if_changed_extensions: [rs]
+
 # Stub patterns are applied to ADDED lines in diff hunks (not whole files)
 stub_patterns:
   - "TODO"
@@ -264,14 +281,15 @@ stub_patterns:
 
 stub_check_extensions: [rs, py, ts, js, tsx, jsx]
 
-# Conflict policy when declared scopes overlap
+# Claim-time conflict settings
+conflict_detection: declared     # declared | diff | hybrid
 conflict_policy: fail            # fail | warn | ignore
 ```
 
 **Notes:**
 - `workflow_branch` / `workflow_worktree` are bootstrap parameters. Since this config lives on the workflow branch, changing these requires explicit init/migration behavior (V1 may treat `burl` + `.burl` as fixed defaults).
 
-#### `.burl/.workflow/agents.yaml` (V2; optional in V1; default layout)
+#### `.burl/.workflow/agents.yaml` (optional; default layout)
 
 Defines agent profiles used by `burl agent run` and `burl watch --dispatch`.
 
@@ -631,7 +649,7 @@ If `build_command` is non-empty:
 - `burl worktree TASK-ID`
   - prints recorded worktree path
 
-#### Agent execution (optional, V2)
+#### Agent execution (optional)
 - `burl agent list`
   - list configured agent profiles from `.burl/.workflow/agents.yaml`
 
@@ -882,7 +900,7 @@ src/player/jump.rs:45  + // TODO: implement cooldown
 10. **events log** + `clean` + lock tools  
 11. **optional utilities**: `watch` automation loop + `monitor` dashboard
 
-### V2 (current)
+### Current
 - `agents.yaml` execution + prompt generation (`burl agent …`, `burl watch --dispatch`)
 - more advanced conflict detection (actual diffs between tasks, not just declared overlaps)
 - PR integration (GitHub/GitLab)

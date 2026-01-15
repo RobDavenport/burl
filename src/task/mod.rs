@@ -141,13 +141,16 @@ pub struct TaskFrontmatter {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
 
-    // =========================================================================
-    // Agent assignment (V2)
-    // =========================================================================
-    /// Agent profile to use for this task (V2).
+    /// Agent profile to use for this task.
     /// If not set, the default agent from agents.yaml is used.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
+
+    /// Validation profile to use for this task.
+    ///
+    /// If not set, `default_validation_profile` from config.yaml is used (if configured).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validation_profile: Option<String>,
 
     // =========================================================================
     // Unknown fields (forward compatibility)
@@ -183,6 +186,7 @@ impl Default for TaskFrontmatter {
             depends_on: Vec::new(),
             tags: Vec::new(),
             agent: None,
+            validation_profile: None,
             extra: BTreeMap::new(),
         }
     }

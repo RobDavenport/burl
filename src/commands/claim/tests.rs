@@ -240,6 +240,73 @@ fn test_claim_with_scope_conflict_fails_by_default() {
 
 #[test]
 #[serial]
+fn test_claim_scope_conflict_hybrid_uses_diffs_when_available() {
+    let temp_dir = create_test_repo_with_remote();
+    let _guard = DirGuard::new(temp_dir.path());
+
+    // Initialize workflow
+    cmd_init().unwrap();
+
+    // Enable hybrid diff-based conflict detection.
+    let config_path = temp_dir.path().join(".burl/.workflow/config.yaml");
+    std::fs::write(&config_path, "conflict_detection: hybrid\n").unwrap();
+
+    // Task 1: broad scope
+    cmd_add(AddArgs {
+        title: "First task".to_string(),
+        priority: "high".to_string(),
+        affects: vec![],
+        affects_globs: vec!["src/**".to_string()],
+        must_not_touch: vec![],
+        depends_on: vec![],
+        tags: vec![],
+    })
+    .unwrap();
+
+    // Task 2: narrow scope that is a subset of task 1's declared scope
+    cmd_add(AddArgs {
+        title: "Second task".to_string(),
+        priority: "high".to_string(),
+        affects: vec![],
+        affects_globs: vec!["src/foo/**".to_string()],
+        must_not_touch: vec![],
+        depends_on: vec![],
+        tags: vec![],
+    })
+    .unwrap();
+
+    // Claim task 1
+    cmd_claim(ClaimArgs {
+        task_id: Some("TASK-001".to_string()),
+    })
+    .unwrap();
+
+    // Make a committed change outside src/foo/** in task 1's worktree.
+    let worktree_path = temp_dir.path().join(".worktrees/task-001-first-task");
+    std::fs::create_dir_all(worktree_path.join("src")).unwrap();
+    std::fs::write(worktree_path.join("src/bar.rs"), "pub fn bar() {}\n").unwrap();
+
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .current_dir(&worktree_path)
+            .args(args)
+            .output()
+            .expect("failed to run git")
+    };
+    git(&["add", "."]);
+    git(&["commit", "-m", "Add bar"]);
+
+    // Claiming task 2 should succeed in hybrid mode because task 1's actual diff
+    // does not overlap with src/foo/**.
+    let result = cmd_claim(ClaimArgs {
+        task_id: Some("TASK-002".to_string()),
+    });
+
+    assert!(result.is_ok(), "expected claim to succeed: {:?}", result);
+}
+
+#[test]
+#[serial]
 fn test_claim_base_sha_is_set() {
     let temp_dir = create_test_repo_with_remote();
     let _guard = DirGuard::new(temp_dir.path());

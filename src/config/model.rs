@@ -2,6 +2,7 @@
 
 use super::types::*;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Configuration for the burl workflow.
 ///
@@ -87,6 +88,20 @@ pub struct Config {
     #[serde(default = "default_build_command")]
     pub build_command: String,
 
+    /// Default validation profile to use for `validate`/`approve`.
+    ///
+    /// If set, `validate`/`approve` run the named profile from `validation_profiles`.
+    /// A task can override this via task frontmatter `validation_profile`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_validation_profile: Option<String>,
+
+    /// Validation profiles.
+    ///
+    /// When configured, these replace the legacy single `build_command` hook with
+    /// an ordered list of command steps and optional per-step conditions.
+    #[serde(default)]
+    pub validation_profiles: BTreeMap<String, ValidationProfile>,
+
     /// Regex patterns for detecting stubs in added lines.
     #[serde(default = "default_stub_patterns")]
     pub stub_patterns: Vec<String>,
@@ -98,6 +113,10 @@ pub struct Config {
     // =========================================================================
     // Conflict settings
     // =========================================================================
+    /// How burl detects scope overlap between tasks at claim time.
+    #[serde(default)]
+    pub conflict_detection: ConflictDetectionMode,
+
     /// Policy when declared scopes overlap between tasks.
     #[serde(default)]
     pub conflict_policy: ConflictPolicy,
@@ -121,8 +140,11 @@ impl Default for Config {
             qa_max_attempts: default_qa_max_attempts(),
             auto_priority_boost_on_retry: default_true(),
             build_command: default_build_command(),
+            default_validation_profile: None,
+            validation_profiles: BTreeMap::new(),
             stub_patterns: default_stub_patterns(),
             stub_check_extensions: default_stub_check_extensions(),
+            conflict_detection: ConflictDetectionMode::default(),
             conflict_policy: ConflictPolicy::default(),
         }
     }

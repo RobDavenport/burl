@@ -111,7 +111,7 @@ pub enum Command {
     #[command(alias = "visualizer", alias = "viz", alias = "dashboard")]
     Monitor(MonitorArgs),
 
-    /// Agent execution commands (V2).
+    /// Agent execution commands.
     ///
     /// Dispatch agents to work on tasks or list configured agents.
     Agent(AgentCommand),
@@ -280,7 +280,7 @@ pub struct WatchArgs {
     #[arg(long)]
     pub approve: bool,
 
-    /// When set, auto-dispatch agents for newly claimed tasks (V2).
+    /// When set, auto-dispatch agents for newly claimed tasks.
     #[arg(long)]
     pub dispatch: bool,
 
@@ -313,7 +313,7 @@ pub struct MonitorArgs {
     pub tail: usize,
 }
 
-/// Agent subcommands (V2).
+/// Agent subcommands.
 #[derive(Parser, Debug)]
 pub struct AgentCommand {
     #[command(subcommand)]

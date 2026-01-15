@@ -1,7 +1,7 @@
 //! Tests for config functionality.
 
 use crate::config::types::{default_stub_check_extensions, default_stub_patterns};
-use crate::config::{Config, ConflictPolicy, MergeStrategy};
+use crate::config::{Config, ConflictDetectionMode, ConflictPolicy, MergeStrategy};
 
 #[test]
 fn test_default_config() {
@@ -102,6 +102,116 @@ conflict_policy: warn
 }
 
 #[test]
+fn test_parse_conflict_detection_mode() {
+    let config = Config::from_yaml("conflict_detection: declared").unwrap();
+    assert_eq!(config.conflict_detection, ConflictDetectionMode::Declared);
+
+    let config = Config::from_yaml("conflict_detection: diff").unwrap();
+    assert_eq!(config.conflict_detection, ConflictDetectionMode::Diff);
+
+    let config = Config::from_yaml("conflict_detection: hybrid").unwrap();
+    assert_eq!(config.conflict_detection, ConflictDetectionMode::Hybrid);
+}
+
+#[test]
+fn test_parse_validation_profiles() {
+    let yaml = r#"
+build_command: ""
+default_validation_profile: quick
+validation_profiles:
+  quick:
+    steps:
+      - name: git-version
+        command: "git --version"
+      - name: rust-only
+        command: "git --version"
+        run_if_changed_extensions: [rs]
+      - name: docs-only
+        command: "git --version"
+        run_if_changed_globs: ["docs/**"]
+"#;
+    let config = Config::from_yaml(yaml).unwrap();
+
+    assert_eq!(config.default_validation_profile.as_deref(), Some("quick"));
+    let profile = config.validation_profiles.get("quick").unwrap();
+    assert_eq!(profile.steps.len(), 3);
+    assert_eq!(profile.steps[0].name, "git-version");
+    assert_eq!(profile.steps[0].command, "git --version");
+    assert_eq!(profile.steps[1].run_if_changed_extensions, vec!["rs"]);
+    assert_eq!(profile.steps[2].run_if_changed_globs, vec!["docs/**"]);
+}
+
+#[test]
+fn test_validate_default_validation_profile_must_exist() {
+    let yaml = r#"
+default_validation_profile: quick
+validation_profiles: {}
+"#;
+    let result = Config::from_yaml(yaml);
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.to_string().contains("default_validation_profile"));
+    assert!(err.to_string().contains("not found"));
+}
+
+#[test]
+fn test_validate_validation_profile_duplicate_step_names_fail() {
+    let yaml = r#"
+build_command: ""
+validation_profiles:
+  quick:
+    steps:
+      - name: lint
+        command: "git --version"
+      - name: lint
+        command: "git --version"
+"#;
+    let result = Config::from_yaml(yaml);
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.to_string().contains("duplicate step name"));
+}
+
+#[test]
+fn test_validate_validation_profile_run_if_changed_extensions_no_leading_dot() {
+    let yaml = r#"
+build_command: ""
+validation_profiles:
+  quick:
+    steps:
+      - name: rust-only
+        command: "git --version"
+        run_if_changed_extensions: [.rs]
+"#;
+    let result = Config::from_yaml(yaml);
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.to_string().contains("run_if_changed_extensions"));
+    assert!(err.to_string().contains("leading dots"));
+}
+
+#[test]
+fn test_validate_validation_profile_run_if_changed_globs_must_be_valid() {
+    let yaml = r#"
+build_command: ""
+validation_profiles:
+  quick:
+    steps:
+      - name: globs
+        command: "git --version"
+        run_if_changed_globs: ["["]
+"#;
+    let result = Config::from_yaml(yaml);
+
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.to_string().contains("invalid glob"));
+}
+
+#[test]
 fn test_parse_yaml_with_unknown_fields() {
     // Unknown fields should be silently ignored for forward compatibility
     let yaml = r#"
@@ -109,7 +219,7 @@ max_parallel: 5
 unknown_field: "some value"
 another_unknown:
   nested: true
-future_feature_v2: enabled
+future_feature_x: enabled
 "#;
     let config = Config::from_yaml(yaml).unwrap();
 

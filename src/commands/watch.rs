@@ -95,10 +95,10 @@ pub fn cmd_watch(args: WatchArgs) -> Result<()> {
             let _ = claim_up_to_max_parallel(&ctx, &config)?;
         }
 
-        if let Some(ref agents_cfg) = agents_config {
-            if dispatch_doing_tasks(&ctx, agents_cfg, &mut state)? {
-                changed_state = true;
-            }
+        if let Some(ref agents_cfg) = agents_config
+            && dispatch_doing_tasks(&ctx, agents_cfg, &mut state)?
+        {
+            changed_state = true;
         }
 
         if args.qa && process_qa_tasks(&ctx, &args, &mut state)? {

@@ -16,6 +16,8 @@ burl init
 - Creates workflow worktree at `.burl/` on branch `burl`
 - Creates bucket directories: READY/, DOING/, QA/, DONE/, BLOCKED/
 - Creates `config.yaml` template
+- Creates `agents.yaml` template (agent config)
+- Creates `prompts/` (tracked) and `agent-logs/` (untracked) directories
 - Creates `.worktrees/` directory at repo root
 
 ---
@@ -118,6 +120,33 @@ cd $(burl worktree TASK-001)
 
 ---
 
+## Agent Commands
+
+### `burl agent list`
+
+List configured agents from `.burl/.workflow/agents.yaml`.
+
+```bash
+burl agent list
+```
+
+### `burl agent run <task-id> [--agent <id>] [--dry-run]`
+
+Dispatch an agent to work on a claimed task (task must be in DOING).
+
+```bash
+# Run the default agent for a task
+burl agent run TASK-001
+
+# Override which agent profile to use
+burl agent run TASK-001 --agent claude-code
+
+# Preview what would run without executing
+burl agent run TASK-001 --dry-run
+```
+
+---
+
 ## QA Commands
 
 ### `burl validate <task-id>`
@@ -131,7 +160,7 @@ burl validate TASK-001
 **Checks:**
 - Scope validation
 - Stub pattern detection
-- Build command (if configured)
+- Validation commands (legacy `build_command`, or `validation_profiles` if configured)
 
 ### `burl approve <task-id>`
 
@@ -235,6 +264,7 @@ burl watch --approve --interval-ms 2000
 | `--claim` | Auto-claim READY tasks (default: true) |
 | `--qa` | Process QA tasks (default: true) |
 | `--approve` | Auto-approve passing tasks |
+| `--dispatch` | Auto-dispatch agents for newly-claimed tasks (requires `agents.yaml`) |
 | `--once` | Single iteration then exit |
 
 ### `burl monitor`

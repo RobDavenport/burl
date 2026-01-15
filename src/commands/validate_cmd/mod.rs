@@ -16,7 +16,6 @@
 //! 8. Append validate event and commit
 //! 9. Release locks
 
-mod build;
 mod report;
 
 #[cfg(test)]
@@ -24,46 +23,18 @@ mod tests;
 
 use crate::cli::ValidateArgs;
 use crate::config::Config;
+use crate::config::ValidationCommandStep;
 use crate::context::require_initialized_workflow;
 use crate::diff::{added_lines, changed_files};
 use crate::error::{BurlError, Result};
 use crate::git_worktree::get_current_branch;
 use crate::locks::acquire_task_lock;
 use crate::task::TaskFile;
+use crate::validate::{ValidationStepResult, ValidationStepStatus, run_command_steps};
 use crate::validate::{validate_scope, validate_stubs_with_config};
 use crate::workflow::{TaskIndex, validate_task_id};
 
-pub use build::run_build_command;
 pub use report::write_qa_report_and_event;
-
-/// Result of a single validation step.
-#[derive(Debug, Clone)]
-pub struct ValidationStepResult {
-    /// Name of the validation step.
-    pub name: String,
-    /// Whether it passed.
-    pub passed: bool,
-    /// Error message if failed.
-    pub message: Option<String>,
-}
-
-impl ValidationStepResult {
-    pub fn pass(name: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            passed: true,
-            message: None,
-        }
-    }
-
-    pub fn fail(name: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            passed: false,
-            message: Some(message.into()),
-        }
-    }
-}
 
 /// Execute the `burl validate` command.
 ///
@@ -201,16 +172,13 @@ pub fn cmd_validate(args: ValidateArgs) -> Result<()> {
         validation_results.push(ValidationStepResult::fail("stubs", &error_msg));
     }
 
-    // --- Build/test validation ---
-    if !config.build_command.trim().is_empty() {
-        let build_result = run_build_command(&config.build_command, &worktree_path)?;
-        if build_result.passed {
-            validation_results.push(ValidationStepResult::pass("build/test"));
-        } else {
+    // --- Command validation pipeline ---
+    let pipeline_results = run_validation_pipeline(&config, &task_file, &changed, &worktree_path);
+    for result in pipeline_results {
+        if !result.is_success() {
             all_passed = false;
-            let error_msg = build::format_build_error(&build_result);
-            validation_results.push(ValidationStepResult::fail("build/test", &error_msg));
         }
+        validation_results.push(result);
     }
 
     // ========================================================================
@@ -238,7 +206,11 @@ pub fn cmd_validate(args: ValidateArgs) -> Result<()> {
     println!();
 
     for result in &validation_results {
-        let status = if result.passed { "PASS" } else { "FAIL" };
+        let status = match result.status {
+            ValidationStepStatus::Pass => "PASS",
+            ValidationStepStatus::Fail => "FAIL",
+            ValidationStepStatus::Skip => "SKIP",
+        };
         println!("  {}: {}", result.name, status);
     }
 
@@ -266,7 +238,11 @@ fn format_validation_summary(results: &[ValidationStepResult], all_passed: bool)
     );
 
     for result in results {
-        let status = if result.passed { "PASS" } else { "FAIL" };
+        let status = match result.status {
+            ValidationStepStatus::Pass => "PASS",
+            ValidationStepStatus::Fail => "FAIL",
+            ValidationStepStatus::Skip => "SKIP",
+        };
         summary.push_str(&format!("- **{}**: {}\n", result.name, status));
 
         if let Some(msg) = &result.message {
@@ -278,4 +254,58 @@ fn format_validation_summary(results: &[ValidationStepResult], all_passed: bool)
     }
 
     summary
+}
+
+fn run_validation_pipeline(
+    config: &Config,
+    task_file: &TaskFile,
+    changed_files: &[String],
+    worktree_path: &std::path::Path,
+) -> Vec<ValidationStepResult> {
+    let profile_name = task_file
+        .frontmatter
+        .validation_profile
+        .as_deref()
+        .or(config.default_validation_profile.as_deref());
+
+    let Some(profile_name) = profile_name else {
+        return run_legacy_build_command(config, worktree_path);
+    };
+
+    let Some(profile) = config.validation_profiles.get(profile_name) else {
+        return vec![ValidationStepResult::fail(
+            "validation",
+            format!(
+                "unknown validation_profile '{}'.\n\
+                 Fix: add validation_profiles.{} to config.yaml or unset validation_profile on the task.",
+                profile_name, profile_name
+            ),
+        )];
+    };
+
+    if profile.steps.is_empty() {
+        return vec![ValidationStepResult::skip(
+            "validation",
+            format!("validation_profile '{}' has no steps", profile_name),
+        )];
+    }
+
+    run_command_steps(&profile.steps, changed_files, worktree_path)
+}
+
+fn run_legacy_build_command(
+    config: &Config,
+    worktree_path: &std::path::Path,
+) -> Vec<ValidationStepResult> {
+    if config.build_command.trim().is_empty() {
+        return Vec::new();
+    }
+
+    let step = ValidationCommandStep {
+        name: "build/test".to_string(),
+        command: config.build_command.clone(),
+        ..Default::default()
+    };
+
+    run_command_steps(std::slice::from_ref(&step), &[], worktree_path)
 }

@@ -96,13 +96,25 @@ fn test_create_workflow_structure() {
     assert!(ctx.events_dir().exists());
     assert!(ctx.events_dir().join(".gitkeep").exists());
 
+    // Verify prompts directory
+    assert!(ctx.prompts_dir().exists());
+    assert!(ctx.prompts_dir().join(".gitkeep").exists());
+
     // Verify locks directory
     assert!(ctx.locks_dir.exists());
     // locks/ should NOT have .gitkeep (it's untracked)
     assert!(!ctx.locks_dir.join(".gitkeep").exists());
 
+    // Verify agent logs directory
+    assert!(ctx.agent_logs_dir().exists());
+    // agent-logs/ should NOT have .gitkeep (it's untracked)
+    assert!(!ctx.agent_logs_dir().join(".gitkeep").exists());
+
     // Verify config.yaml
     assert!(ctx.config_path().exists());
+
+    // Verify agents.yaml
+    assert!(ctx.agents_config_path().exists());
 
     // Verify .gitignore
     let gitignore_path = ctx.workflow_state_dir.join(".gitignore");

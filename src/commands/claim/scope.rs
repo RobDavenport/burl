@@ -1,6 +1,7 @@
 //! Scope conflict detection for claim operation.
 
-use crate::config::ConflictPolicy;
+use crate::config::{ConflictDetectionMode, ConflictPolicy};
+use crate::diff;
 use crate::error::{BurlError, Result};
 use crate::task::TaskFile;
 use crate::workflow::TaskIndex;
@@ -120,9 +121,10 @@ fn globs_overlap_heuristic(glob_a: &str, glob_b: &str) -> bool {
 
 /// Check for scope conflicts with tasks currently in DOING.
 pub fn check_scope_conflicts(
-    _ctx: &crate::context::WorkflowContext,
+    ctx: &crate::context::WorkflowContext,
     task: &TaskFile,
     index: &TaskIndex,
+    detection: ConflictDetectionMode,
     policy: ConflictPolicy,
 ) -> Result<()> {
     if policy == ConflictPolicy::Ignore {
@@ -138,12 +140,38 @@ pub fn check_scope_conflicts(
     for doing_task in doing_tasks {
         let doing_file = TaskFile::load(&doing_task.path)?;
 
-        if scopes_overlap(
+        let declared_overlap = scopes_overlap(
             claiming_affects,
             claiming_globs,
             &doing_file.frontmatter.affects,
             &doing_file.frontmatter.affects_globs,
-        ) {
+        );
+
+        let diff_overlap = match detection {
+            ConflictDetectionMode::Declared => None,
+            ConflictDetectionMode::Diff | ConflictDetectionMode::Hybrid => {
+                diff_overlap_with_doing_task(ctx, task, &doing_task.id, &doing_file)
+            }
+        };
+
+        let overlaps = match detection {
+            ConflictDetectionMode::Declared => declared_overlap,
+            ConflictDetectionMode::Diff => diff_overlap.unwrap_or(declared_overlap),
+            ConflictDetectionMode::Hybrid => {
+                // Prefer actual changes when available; fallback to declared scopes.
+                match diff_overlap {
+                    Some(overlap)
+                        if !doing_file_has_empty_diff(ctx, &doing_task.id, &doing_file) =>
+                    {
+                        overlap
+                    }
+                    Some(_) => declared_overlap,
+                    None => declared_overlap,
+                }
+            }
+        };
+
+        if overlaps {
             conflicts.push(format!(
                 "{} ({})",
                 doing_task.id, doing_file.frontmatter.title
@@ -173,6 +201,111 @@ pub fn check_scope_conflicts(
         }
         ConflictPolicy::Ignore => Ok(()),
     }
+}
+
+fn diff_overlap_with_doing_task(
+    ctx: &crate::context::WorkflowContext,
+    claiming_task: &TaskFile,
+    doing_task_id: &str,
+    doing_task: &TaskFile,
+) -> Option<bool> {
+    let base_sha = doing_task.frontmatter.base_sha.as_deref()?;
+
+    let refs = crate::task_git::validate_task_git_refs_if_present(
+        ctx,
+        doing_task_id,
+        doing_task.frontmatter.branch.as_deref(),
+        doing_task.frontmatter.worktree.as_deref(),
+    )
+    .ok()??;
+
+    if !refs.worktree_path.exists() {
+        return None;
+    }
+
+    let changed = diff::changed_files(&refs.worktree_path, base_sha).ok()?;
+    Some(any_file_in_scope(
+        &claiming_task.frontmatter.affects,
+        &claiming_task.frontmatter.affects_globs,
+        &changed,
+    ))
+}
+
+fn doing_file_has_empty_diff(
+    ctx: &crate::context::WorkflowContext,
+    doing_task_id: &str,
+    doing_task: &TaskFile,
+) -> bool {
+    let Some(base_sha) = doing_task.frontmatter.base_sha.as_deref() else {
+        return true;
+    };
+
+    let refs = match crate::task_git::validate_task_git_refs_if_present(
+        ctx,
+        doing_task_id,
+        doing_task.frontmatter.branch.as_deref(),
+        doing_task.frontmatter.worktree.as_deref(),
+    ) {
+        Ok(Some(r)) => r,
+        _ => return true,
+    };
+
+    if !refs.worktree_path.exists() {
+        return true;
+    }
+
+    diff::changed_files(&refs.worktree_path, base_sha)
+        .map(|files| files.is_empty())
+        .unwrap_or(true)
+}
+
+fn any_file_in_scope(affects: &[String], globs: &[String], changed_files: &[String]) -> bool {
+    if changed_files.is_empty() {
+        return false;
+    }
+
+    let allowed_paths: std::collections::HashSet<String> =
+        affects.iter().map(|p| p.replace('\\', "/")).collect();
+
+    let mut builder = globset::GlobSetBuilder::new();
+    for pattern in globs {
+        let normalized = pattern.replace('\\', "/");
+        if let Ok(glob) = globset::Glob::new(&normalized) {
+            builder.add(glob);
+        }
+    }
+    let globset = builder.build().ok();
+
+    changed_files.iter().any(|file| {
+        let file = file.replace('\\', "/");
+        if allowed_paths.contains(&file) {
+            return true;
+        }
+
+        if let Some(ref set) = globset
+            && set.is_match(&file)
+        {
+            return true;
+        }
+
+        // Treat explicit `affects` paths as directories when appropriate (mirrors scope validator).
+        for allowed in &allowed_paths {
+            if allowed.ends_with('/') && file.starts_with(allowed) {
+                return true;
+            }
+
+            let dir_prefix = if allowed.ends_with('/') {
+                allowed.clone()
+            } else {
+                format!("{}/", allowed)
+            };
+            if file.starts_with(&dir_prefix) {
+                return true;
+            }
+        }
+
+        false
+    })
 }
 
 #[cfg(test)]

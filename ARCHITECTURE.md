@@ -64,7 +64,7 @@ Most commands follow the same shape:
   - `scope` — enforce `affects`/`affects_globs` and `must_not_touch`
   - `stubs` — detect incomplete code patterns in **added lines only**
 
-### Agent execution (V2)
+### Agent execution
 
 - `src/agent/config.rs` — parses `.burl/.workflow/agents.yaml` (profiles, defaults, prompt templates).
 - `src/agent/prompt/` — task context extraction + prompt generation.

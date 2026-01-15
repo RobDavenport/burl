@@ -61,9 +61,9 @@ pub enum EventAction {
     LockClear,
     /// Cleanup operation
     Clean,
-    /// Agent dispatch started (V2)
+    /// Agent dispatch started
     AgentDispatch,
-    /// Agent execution completed (V2)
+    /// Agent execution completed
     AgentComplete,
 }
 

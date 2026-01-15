@@ -14,7 +14,13 @@
 cargo install --path .
 ```
 
-## Quick start
+## Get up and running
+
+### Existing project (most common)
+
+Prereqs:
+- You’re in a Git repo (not a submodule) with at least one commit.
+- If your default branch isn’t `main`, set `main_branch` in `.burl/.workflow/config.yaml` after init.
 
 From the root of a Git repository you want to use `burl` in:
 
@@ -41,7 +47,30 @@ burl approve TASK-001
 burl reject TASK-001 --reason "Scope exceeded; touched src/net/**" # may move to BLOCKED if max attempts reached
 ```
 
-## Agent dispatch (V2)
+### New project
+
+```bash
+mkdir my-project && cd my-project
+git init -b main
+echo "# my-project" > README.md
+git add README.md
+git commit -m "Initial commit"
+
+burl init
+```
+
+### Working across machines (or a team repo)
+
+The durable workflow state lives on the `burl` branch (the `.burl/` worktree is just a checkout of it).
+
+- On machine A: push workflow state + any in-progress task branches:
+  - `git push <remote> burl`
+  - `git push <remote> <task-branch>`
+- On machine B: fetch the workflow branch locally, then init to attach the worktree:
+  - `git fetch <remote> burl:burl`
+  - `burl init`
+
+## Agent dispatch
 
 ```bash
 # list configured agents
@@ -84,9 +113,9 @@ Default layout:
   .workflow/
     READY/ DOING/ QA/ DONE/ BLOCKED/
     config.yaml
-    agents.yaml        # agent configuration (V2)
-    prompts/           # generated agent prompts (V2)
-    agent-logs/        # agent stdout/stderr (V2, untracked)
+    agents.yaml        # agent configuration
+    prompts/           # generated agent prompts
+    agent-logs/        # agent stdout/stderr (untracked)
     events/events.ndjson
     locks/             # untracked, machine-local
 
@@ -100,14 +129,15 @@ Workflow config lives at `.burl/.workflow/config.yaml`.
 
 Common knobs:
 - `main_branch`, `remote`
-- `build_command` (empty string disables build/test validation)
+- `build_command` (legacy single-step hook; empty string disables build/test validation)
+- `validation_profiles`, `default_validation_profile` (multi-step pipeline; optional)
 - `stub_patterns`, `stub_check_extensions`
-- `merge_strategy`, `conflict_policy`
+- `merge_strategy`, `conflict_detection`, `conflict_policy`
 - `workflow_auto_commit`, `workflow_auto_push`
 
 ## Agent configuration
 
-Create `.burl/.workflow/agents.yaml` to configure agent profiles:
+Edit `.burl/.workflow/agents.yaml` (scaffolded by `burl init`) to configure agent profiles:
 
 ```yaml
 agents:
@@ -160,4 +190,3 @@ If `cargo check`/`cargo clippy` fails with `Invalid cross-device link (os error 
 
 - Spec / PRD: `burl.md`
 - Roadmap: `ROADMAP.md`
-- Historical implementation task breakdown: `tasks/README.md`

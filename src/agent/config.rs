@@ -1,49 +1,6 @@
-//! Agent configuration schema for burl V2.
+//! Agent configuration schema.
 //!
-//! This module defines the `agents.yaml` configuration file format, which specifies
-//! agent profiles for automated task execution.
-//!
-//! # File Format
-//!
-//! ```yaml
-//! agents:
-//!   claude-code:
-//!     name: "Claude Code CLI"
-//!     command: "claude -p {prompt_file}"
-//!     timeout_seconds: 600
-//!     environment:
-//!       CLAUDE_CODE_AUTO_CONFIRM: "true"
-//!     capabilities:
-//!       - coding
-//!       - refactoring
-//!     default: true
-//!
-//!   custom-script:
-//!     name: "Custom Script"
-//!     command: "./scripts/agent.sh {task_id} {worktree}"
-//!     timeout_seconds: 300
-//!
-//! defaults:
-//!   timeout_seconds: 600
-//!
-//! prompt_templates:
-//!   default: |
-//!     # Task: {title}
-//!     ## Objective
-//!     {objective}
-//! ```
-//!
-//! # Variable Placeholders
-//!
-//! Command templates support the following placeholders:
-//!
-//! - `{task_id}` - Task identifier (e.g., "TASK-001")
-//! - `{task_file}` - Absolute path to the task markdown file
-//! - `{prompt_file}` - Absolute path to the generated prompt file
-//! - `{worktree}` - Absolute path to the task worktree
-//! - `{branch}` - Task branch name
-//! - `{base_sha}` - Base SHA for diff validation
-//! - `{title}` - Task title
+//! Defines `.burl/.workflow/agents.yaml`.
 
 use crate::error::{BurlError, Result};
 use serde::{Deserialize, Serialize};

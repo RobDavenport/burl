@@ -119,9 +119,11 @@ Stub patterns found in added lines:
   src/player/jump.rs:45  + // TODO: implement cooldown
 ```
 
-## Build/Test Command
+## Validation Commands
 
-Optional build command runs in the task worktree:
+### Legacy: `build_command`
+
+Optional single build/test command runs in the task worktree:
 
 ```yaml
 # config.yaml
@@ -130,6 +132,35 @@ build_command: "cargo test"
 
 - Empty string disables build validation
 - Non-zero exit code = validation failure
+
+### `validation_profiles`
+
+You can configure an ordered, multi-step validation pipeline and optionally run steps only when relevant files change:
+
+```yaml
+# config.yaml
+default_validation_profile: rust
+
+validation_profiles:
+  rust:
+    steps:
+      - name: fmt
+        command: cargo fmt --all -- --check
+        run_if_changed_extensions: [rs]
+
+      - name: test
+        command: cargo test
+        run_if_changed_extensions: [rs]
+```
+
+Selection order:
+1. Task frontmatter `validation_profile` (if set)
+2. Config `default_validation_profile` (if set)
+3. Otherwise, falls back to legacy `build_command`
+
+Per-step conditions:
+- `run_if_changed_extensions`: run if any changed file has one of these extensions
+- `run_if_changed_globs`: run if any changed file matches one of these globs
 
 ## Validation Report
 

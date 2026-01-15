@@ -127,7 +127,13 @@ pub fn cmd_claim(args: ClaimArgs) -> Result<()> {
     check_dependencies_satisfied(&task_file, &index)?;
 
     // Check scope conflicts with DOING tasks
-    check_scope_conflicts(&ctx, &task_file, &index, config.conflict_policy)?;
+    check_scope_conflicts(
+        &ctx,
+        &task_file,
+        &index,
+        config.conflict_detection,
+        config.conflict_policy,
+    )?;
 
     // ========================================================================
     // Phase 4: Re-claim Check (after reject)

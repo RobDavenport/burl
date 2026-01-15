@@ -35,7 +35,7 @@ The skill activates when you mention:
 - "burl", "burl workflow", "burl cli"
 - "task states", "scope constraints"
 - "affects_globs", "must_not_touch"
-- Any Burl command: claim, submit, validate, approve
+- Any Burl command: claim, submit, validate, approve, watch, monitor, agent
 
 ### Agent Activation
 

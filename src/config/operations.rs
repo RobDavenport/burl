@@ -2,6 +2,7 @@
 
 use super::model::Config;
 use crate::error::{BurlError, Result};
+use globset::Glob;
 use std::path::Path;
 
 impl Config {
@@ -83,6 +84,77 @@ impl Config {
                     ext,
                     ext.trim_start_matches('.')
                 )));
+            }
+        }
+
+        // Validate validation profiles
+        if let Some(ref default_profile) = self.default_validation_profile
+            && !self.validation_profiles.contains_key(default_profile)
+        {
+            return Err(BurlError::UserError(format!(
+                "config validation failed: default_validation_profile '{}' not found in validation_profiles",
+                default_profile
+            )));
+        }
+
+        for (profile_name, profile) in &self.validation_profiles {
+            let mut step_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
+
+            for (idx, step) in profile.steps.iter().enumerate() {
+                if step.name.trim().is_empty() {
+                    return Err(BurlError::UserError(format!(
+                        "config validation failed: validation_profiles.{}.steps[{}].name must be non-empty",
+                        profile_name, idx
+                    )));
+                }
+
+                if !step_names.insert(step.name.trim()) {
+                    return Err(BurlError::UserError(format!(
+                        "config validation failed: validation_profiles.{} has duplicate step name '{}'",
+                        profile_name, step.name
+                    )));
+                }
+
+                if step.command.trim().is_empty() {
+                    return Err(BurlError::UserError(format!(
+                        "config validation failed: validation_profiles.{}.steps[{}].command must be non-empty",
+                        profile_name, idx
+                    )));
+                }
+
+                for ext in &step.run_if_changed_extensions {
+                    if ext.trim().is_empty() {
+                        return Err(BurlError::UserError(format!(
+                            "config validation failed: validation_profiles.{}.steps[{}].run_if_changed_extensions entries must be non-empty",
+                            profile_name, idx
+                        )));
+                    }
+                    if ext.starts_with('.') {
+                        return Err(BurlError::UserError(format!(
+                            "config validation failed: validation_profiles.{}.steps[{}].run_if_changed_extensions entries must not have leading dots (found '{}'). Use '{}' instead.",
+                            profile_name,
+                            idx,
+                            ext,
+                            ext.trim_start_matches('.')
+                        )));
+                    }
+                }
+
+                for pattern in &step.run_if_changed_globs {
+                    let pattern = pattern.trim();
+                    if pattern.is_empty() {
+                        return Err(BurlError::UserError(format!(
+                            "config validation failed: validation_profiles.{}.steps[{}].run_if_changed_globs entries must be non-empty",
+                            profile_name, idx
+                        )));
+                    }
+                    Glob::new(pattern).map_err(|e| {
+                        BurlError::UserError(format!(
+                            "config validation failed: invalid glob in validation_profiles.{}.steps[{}].run_if_changed_globs: '{}' ({})",
+                            profile_name, idx, pattern, e
+                        ))
+                    })?;
+                }
             }
         }
 

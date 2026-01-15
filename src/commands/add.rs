@@ -95,6 +95,7 @@ pub fn cmd_add(args: AddArgs) -> Result<()> {
         depends_on: args.depends_on,
         tags: args.tags,
         agent: None,
+        validation_profile: None,
         extra: Default::default(),
     };
 

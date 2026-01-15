@@ -2,7 +2,7 @@
 description: |
   Complete guide to Burl, a file-based workflow orchestrator for agentic AI development. Use this skill when working with Burl workflows, creating tasks, understanding scope constraints, or running Burl CLI commands.
 
-  Trigger phrases: "burl", "burl workflow", "burl task", "burl cli", "task states", "scope constraints", "affects_globs", "must_not_touch", "claim", "submit", "validate", "approve", "reject", "READY", "DOING", "QA", "DONE", "BLOCKED"
+  Trigger phrases: "burl", "burl workflow", "burl task", "burl cli", "task states", "scope constraints", "affects_globs", "must_not_touch", "claim", "submit", "validate", "approve", "reject", "watch", "dispatch", "monitor", "agent", "READY", "DOING", "QA", "DONE", "BLOCKED"
 
   **Load references for detailed information:**
   - Full CLI documentation: `references/cli-reference.md`
@@ -78,8 +78,12 @@ Filename: `TASK-NNN-slug.md` with YAML frontmatter:
 | `burl validate TASK-ID` | Run validation checks |
 | `burl approve TASK-ID` | Approve and merge (QA → DONE) |
 | `burl reject TASK-ID --reason "..."` | Reject with reason |
+| `burl agent list` | List configured agents |
+| `burl agent run TASK-ID` | Dispatch an agent on a DOING task |
 | `burl doctor [--repair]` | Diagnose/repair issues |
 | `burl clean --completed` | Remove completed worktrees |
+| `burl watch --dispatch` | Auto-claim + dispatch agents |
+| `burl monitor` | Live dashboard |
 
 ## Typical Workflow
 

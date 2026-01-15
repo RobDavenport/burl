@@ -12,6 +12,21 @@ use std::path::Path;
 
 use super::BUCKETS;
 
+const DEFAULT_AGENTS_YAML: &str = r#"agents: {}
+
+defaults:
+  timeout_seconds: 600
+  prompt_template: default
+
+prompt_templates:
+  default: |
+    # Task: {title}
+    ## Objective
+    {objective}
+    ## Acceptance Criteria
+    {acceptance_criteria}
+"#;
+
 /// Create the workflow state directory structure.
 pub(super) fn create_workflow_structure(ctx: &WorkflowContext) -> Result<()> {
     // Create .workflow directory
@@ -33,11 +48,25 @@ pub(super) fn create_workflow_structure(ctx: &WorkflowContext) -> Result<()> {
     let events_path = ctx.events_dir();
     create_dir_with_gitkeep(&events_path)?;
 
+    // Create prompts directory with .gitkeep (tracked, durable)
+    let prompts_path = ctx.prompts_dir();
+    create_dir_with_gitkeep(&prompts_path)?;
+
     // Create locks directory (no .gitkeep - it's untracked)
     fs::create_dir_all(&ctx.locks_dir).map_err(|e| {
         BurlError::UserError(format!(
             "failed to create locks directory '{}': {}",
             ctx.locks_dir.display(),
+            e
+        ))
+    })?;
+
+    // Create agent-logs directory (untracked)
+    let agent_logs_dir = ctx.agent_logs_dir();
+    fs::create_dir_all(&agent_logs_dir).map_err(|e| {
+        BurlError::UserError(format!(
+            "failed to create agent logs directory '{}': {}",
+            agent_logs_dir.display(),
             e
         ))
     })?;
@@ -48,6 +77,12 @@ pub(super) fn create_workflow_structure(ctx: &WorkflowContext) -> Result<()> {
         let default_config = Config::default();
         let yaml = default_config.to_yaml()?;
         atomic_write_file(&config_path, &yaml)?;
+    }
+
+    // Create agents.yaml template if it doesn't exist
+    let agents_path = ctx.agents_config_path();
+    if !agents_path.exists() {
+        atomic_write_file(&agents_path, DEFAULT_AGENTS_YAML)?;
     }
 
     // Create .gitignore in .workflow to ignore locks/

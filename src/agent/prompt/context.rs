@@ -247,7 +247,7 @@ mod tests {
                 affects: vec!["src/main.rs".to_string(), "src/lib.rs".to_string()],
                 affects_globs: vec!["src/**/*.rs".to_string()],
                 must_not_touch: vec!["config.yaml".to_string()],
-                tags: vec!["feature".to_string(), "v2".to_string()],
+                tags: vec!["feature".to_string(), "agent".to_string()],
                 depends_on: vec!["TASK-000".to_string()],
                 worktree: Some("/path/to/worktree".to_string()),
                 branch: Some("task-001".to_string()),
@@ -356,7 +356,7 @@ Implement the feature.
         assert_eq!(ctx.affects, vec!["src/main.rs", "src/lib.rs"]);
         assert_eq!(ctx.affects_globs, vec!["src/**/*.rs"]);
         assert_eq!(ctx.must_not_touch, vec!["config.yaml"]);
-        assert_eq!(ctx.tags, vec!["feature", "v2"]);
+        assert_eq!(ctx.tags, vec!["feature", "agent"]);
         assert_eq!(ctx.depends_on, vec!["TASK-000"]);
         assert_eq!(ctx.worktree, Some("/path/to/worktree".to_string()));
         assert_eq!(ctx.branch, Some("task-001".to_string()));
@@ -384,7 +384,7 @@ Test objective.
         );
         assert_eq!(vars.get("affects_globs"), Some(&"src/**/*.rs".to_string()));
         assert_eq!(vars.get("must_not_touch"), Some(&"config.yaml".to_string()));
-        assert_eq!(vars.get("tags"), Some(&"feature, v2".to_string()));
+        assert_eq!(vars.get("tags"), Some(&"feature, agent".to_string()));
         assert_eq!(vars.get("depends_on"), Some(&"TASK-000".to_string()));
         assert_eq!(vars.get("worktree"), Some(&"/path/to/worktree".to_string()));
         assert_eq!(vars.get("branch"), Some(&"task-001".to_string()));

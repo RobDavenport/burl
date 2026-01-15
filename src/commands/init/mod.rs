@@ -96,7 +96,9 @@ pub fn cmd_init() -> Result<()> {
         println!("  .burl/.workflow/{}/", bucket);
     }
     println!("  .burl/.workflow/events/");
+    println!("  .burl/.workflow/prompts/");
     println!("  .burl/.workflow/locks/  (untracked)");
+    println!("  .burl/.workflow/agent-logs/  (untracked)");
     println!("  .worktrees/             (untracked)");
     println!();
     println!("You can now add tasks with `burl add \"task title\"`.");

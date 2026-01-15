@@ -57,6 +57,13 @@ base_sha: null          # CRITICAL: Diff reference for validation
 
 **Important:** `base_sha` is set when the task is claimed and is used for all diff-based validation. It represents the state of `origin/main` at claim time.
 
+### Agent & Validation
+
+```yaml
+agent: null             # Optional; overrides default agent from agents.yaml
+validation_profile: null # Optional; overrides default_validation_profile from config.yaml
+```
+
 ### Scope Control
 
 ```yaml

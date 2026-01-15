@@ -54,10 +54,10 @@ pub(crate) fn create_non_repo_dir() -> TempDir {
         if !root.is_dir() {
             continue;
         }
-        if let Ok(dir) = TempDir::new_in(&root) {
-            if !is_inside_git_repo(dir.path()) {
-                return dir;
-            }
+        if let Ok(dir) = TempDir::new_in(&root)
+            && !is_inside_git_repo(dir.path())
+        {
+            return dir;
         }
     }
 

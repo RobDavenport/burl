@@ -7,6 +7,7 @@ use crate::commands::claim::cmd_claim;
 use crate::commands::init::cmd_init;
 use crate::commands::submit::cmd_submit;
 use crate::exit_codes;
+use crate::task::TaskFrontmatter;
 use crate::test_support::{DirGuard, create_test_repo_with_remote};
 use serial_test::serial;
 use std::path::PathBuf;
@@ -67,7 +68,7 @@ fn setup_task_in_qa(temp_dir: &TempDir) -> PathBuf {
 #[test]
 fn test_validation_step_result_pass() {
     let result = ValidationStepResult::pass("scope");
-    assert!(result.passed);
+    assert_eq!(result.status, ValidationStepStatus::Pass);
     assert_eq!(result.name, "scope");
     assert!(result.message.is_none());
 }
@@ -75,7 +76,7 @@ fn test_validation_step_result_pass() {
 #[test]
 fn test_validation_step_result_fail() {
     let result = ValidationStepResult::fail("stubs", "Found TODO");
-    assert!(!result.passed);
+    assert_eq!(result.status, ValidationStepStatus::Fail);
     assert_eq!(result.name, "stubs");
     assert_eq!(result.message, Some("Found TODO".to_string()));
 }
@@ -105,6 +106,130 @@ fn test_format_validation_summary_with_failure() {
     assert!(summary.contains("**scope**: PASS"));
     assert!(summary.contains("**stubs**: FAIL"));
     assert!(summary.contains("Found TODO"));
+}
+
+fn make_task(validation_profile: Option<&str>) -> TaskFile {
+    TaskFile {
+        frontmatter: TaskFrontmatter {
+            id: "TASK-001".to_string(),
+            title: "Test".to_string(),
+            validation_profile: validation_profile.map(|s| s.to_string()),
+            ..Default::default()
+        },
+        body: String::new(),
+    }
+}
+
+#[test]
+fn test_run_validation_pipeline_uses_default_profile() {
+    let config = Config::from_yaml(
+        r#"
+build_command: ""
+default_validation_profile: quick
+validation_profiles:
+  quick:
+    steps:
+      - name: git-version
+        command: "git --version"
+"#,
+    )
+    .unwrap();
+
+    let task = make_task(None);
+    let worktree = TempDir::new().unwrap();
+    let results = super::run_validation_pipeline(
+        &config,
+        &task,
+        &["src/lib.rs".to_string()],
+        worktree.path(),
+    );
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].name, "git-version");
+    assert_eq!(results[0].status, ValidationStepStatus::Pass);
+}
+
+#[test]
+fn test_run_validation_pipeline_task_override_wins() {
+    let config = Config::from_yaml(
+        r#"
+build_command: ""
+default_validation_profile: quick
+validation_profiles:
+  quick:
+    steps:
+      - name: git-version
+        command: "git --version"
+  override:
+    steps:
+      - name: bad
+        command: "git definitely-not-a-command"
+"#,
+    )
+    .unwrap();
+
+    let task = make_task(Some("override"));
+    let worktree = TempDir::new().unwrap();
+    let results = super::run_validation_pipeline(&config, &task, &[], worktree.path());
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].name, "bad");
+    assert_eq!(results[0].status, ValidationStepStatus::Fail);
+}
+
+#[test]
+fn test_run_validation_pipeline_unknown_profile_fails() {
+    let config = Config::from_yaml("build_command: \"\"").unwrap();
+    let task = make_task(Some("missing"));
+    let worktree = TempDir::new().unwrap();
+
+    let results = super::run_validation_pipeline(&config, &task, &[], worktree.path());
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].name, "validation");
+    assert_eq!(results[0].status, ValidationStepStatus::Fail);
+    assert!(
+        results[0]
+            .message
+            .clone()
+            .unwrap_or_default()
+            .contains("unknown validation_profile")
+    );
+}
+
+#[test]
+fn test_run_validation_pipeline_no_profile_uses_legacy_build_command() {
+    let config = Config::from_yaml("build_command: \"git --version\"").unwrap();
+    let task = make_task(None);
+    let worktree = TempDir::new().unwrap();
+
+    let results = super::run_validation_pipeline(&config, &task, &[], worktree.path());
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].name, "build/test");
+    assert_eq!(results[0].status, ValidationStepStatus::Pass);
+}
+
+#[test]
+fn test_run_validation_pipeline_empty_profile_steps_skips() {
+    let config = Config::from_yaml(
+        r#"
+build_command: ""
+default_validation_profile: quick
+validation_profiles:
+  quick:
+    steps: []
+"#,
+    )
+    .unwrap();
+
+    let task = make_task(None);
+    let worktree = TempDir::new().unwrap();
+    let results = super::run_validation_pipeline(&config, &task, &[], worktree.path());
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].name, "validation");
+    assert_eq!(results[0].status, ValidationStepStatus::Skip);
 }
 
 #[test]

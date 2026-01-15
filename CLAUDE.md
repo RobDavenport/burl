@@ -15,7 +15,6 @@
 - `burl.md` — PRD/spec
 - `ARCHITECTURE.md` — repo map + invariants
 - `ROADMAP.md` — current vs future features
-- `tasks/README.md` — sequential implementation tasks + acceptance criteria
 
 ## Development / verification
 
@@ -33,5 +32,5 @@ If `cargo check`/`cargo clippy` fails with `Invalid cross-device link (os error 
 
 - Workflow state is **folders + task markdown** stored in the canonical workflow worktree (default `.burl/` on branch `burl`).
 - Scope/stub gates are **diff-based** and must remain deterministic (no scanning full files for TODOs; added lines only).
-- V2 agent execution is subprocess-based and configured via `.burl/.workflow/agents.yaml` (`burl agent …`, `burl watch --dispatch`).
+- Agent execution is subprocess-based and configured via `.burl/.workflow/agents.yaml` (`burl agent …`, `burl watch --dispatch`).
 - Keep user-facing behavior (README + `burl.md`) consistent with implementation when changing command semantics.

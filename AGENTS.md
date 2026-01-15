@@ -13,7 +13,6 @@ This repo is the standalone home for the `burl` tool/spec.
 - PRD / source of truth: `burl.md`
 - Architecture map: `ARCHITECTURE.md`
 - Roadmap: `ROADMAP.md`
-- Implementation task breakdown: `tasks/README.md`
 
 ## Development Notes
 
@@ -36,7 +35,7 @@ Note: some environments hit `Invalid cross-device link (os error 18)` for `cargo
 - `src/main.rs`: CLI entry + exit code mapping
 - `src/cli/`: clap CLI definitions
 - `src/commands/`: one module per command (`init/add/claim/submit/validate/approve/reject/watch/monitor/agent/...`)
-- `src/agent/`: agent execution core (V2: config, prompt generation, dispatch)
+- `src/agent/`: agent execution core (config, prompt generation, dispatch)
 - `src/fs/`: atomic writes + best-effort moves (`atomic.rs`, `move_file.rs`)
 - `src/task/`: task file parse/serialize + mutation helpers
 - `src/workflow.rs`: bucket indexing + filename/id helpers

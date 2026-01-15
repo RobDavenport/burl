@@ -4,6 +4,7 @@
 //! used by the Config struct.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Merge strategy for task branches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -55,6 +56,19 @@ impl ConflictPolicy {
             _ => None,
         }
     }
+}
+
+/// Mode for detecting scope conflicts at claim time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictDetectionMode {
+    /// Use declared task scopes only (V1 behavior).
+    #[default]
+    Declared,
+    /// Use only actual changed files in DOING task worktrees (diff vs base_sha).
+    Diff,
+    /// Prefer actual diffs when available; fallback to declared scopes when a DOING task has no diff.
+    Hybrid,
 }
 
 /// Default stub patterns for detecting incomplete code.
@@ -113,4 +127,44 @@ pub(crate) fn default_build_command() -> String {
 }
 pub(crate) fn default_true() -> bool {
     true
+}
+
+/// A named validation profile consisting of ordered command steps.
+///
+/// Profiles are selected by:
+/// - Task frontmatter `validation_profile` (if set), otherwise
+/// - Config `default_validation_profile` (if set), otherwise
+/// - Fallback to legacy `build_command`
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ValidationProfile {
+    /// Ordered command steps to run.
+    pub steps: Vec<ValidationCommandStep>,
+
+    /// Unknown fields preserved for forward compatibility.
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, serde_yaml::Value>,
+}
+
+/// A single command step in a validation profile.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ValidationCommandStep {
+    /// Display name for the step (e.g., "cargo test", "npm test", "fmt").
+    pub name: String,
+
+    /// Command to execute (shell-words parsed; no shell).
+    pub command: String,
+
+    /// Only run this step if any changed file matches one of these globs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub run_if_changed_globs: Vec<String>,
+
+    /// Only run this step if any changed file has one of these extensions (no leading dots).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub run_if_changed_extensions: Vec<String>,
+
+    /// Unknown fields preserved for forward compatibility.
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, serde_yaml::Value>,
 }

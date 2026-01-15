@@ -13,4 +13,6 @@ mod tests;
 
 // Re-export public API
 pub use model::Config;
-pub use types::{ConflictPolicy, MergeStrategy};
+pub use types::{
+    ConflictDetectionMode, ConflictPolicy, MergeStrategy, ValidationCommandStep, ValidationProfile,
+};
