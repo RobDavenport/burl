@@ -1,53 +1,49 @@
 # Burl (File-Driven eXecution)
 
-`burl` is a minimal, file-based workflow orchestrator for agentic coding/review pipelines.
+`burl` is a minimal, file-based workflow orchestrator for coding and review pipelines.
 
-## What it does
+## At a glance
 
-- Stores workflow state as **folders + markdown task files** in a dedicated Git worktree (default `.burl/` on branch `burl`).
-- Creates one Git worktree per task under `.worktrees/` to isolate work.
-- Enforces deterministic gates (scope + stubs; optional build/test command) using **diffs against a stored `base_sha`**.
+- Workflow state is folders plus markdown task files in a dedicated Git worktree (`.burl/` on branch `burl` by default).
+- Each claimed task gets its own Git worktree under `.worktrees/`.
+- Validation gates are deterministic and diff-based (scope, stubs, optional build/test profile).
 
-## Install (from source)
+## Prerequisites
+
+- You are inside a Git repository (not a submodule) with at least one commit.
+- If your default branch is not `main`, set `main_branch` in `.burl/.workflow/config.yaml` after `burl init`.
+
+## Install
 
 ```bash
 cargo install --path .
 ```
 
-## Get up and running
-
-### Existing project (most common)
-
-Prereqs:
-- You’re in a Git repo (not a submodule) with at least one commit.
-- If your default branch isn’t `main`, set `main_branch` in `.burl/.workflow/config.yaml` after init.
-
-From the root of a Git repository you want to use `burl` in:
+## Quick workflow
 
 ```bash
-# first time (idempotent)
+# One-time setup (idempotent)
 burl init
 
-# create a task (goes to READY/)
+# Create task in READY/
 burl add "Implement player jump" --priority high --affects-globs "src/player/**"
 
-# claim work (moves READY -> DOING and creates a task worktree)
+# Claim task (READY -> DOING) and create task worktree
 burl claim TASK-001
-# (cd into the printed worktree path to do the work)
 
-# in the task worktree: make commits, then submit for QA
+# In task worktree: commit code, then submit to QA
 burl submit TASK-001
 
-# run validation (scope/stubs + optional build/test)
+# Run validation without status transition
 burl validate TASK-001
 
-# accept/reject
+# Finalize
 burl approve TASK-001
 # or
-burl reject TASK-001 --reason "Scope exceeded; touched src/net/**" # may move to BLOCKED if max attempts reached
+burl reject TASK-001 --reason "Scope exceeded; touched src/net/**"
 ```
 
-### New project
+## New repository bootstrap
 
 ```bash
 mkdir my-project && cd my-project
@@ -59,124 +55,81 @@ git commit -m "Initial commit"
 burl init
 ```
 
-### Working across machines (or a team repo)
+## Multi-machine or team usage
 
-The durable workflow state lives on the `burl` branch (the `.burl/` worktree is just a checkout of it).
+Durable workflow state lives on the `burl` branch. The `.burl/` directory is just a checkout of that branch.
 
-- On machine A: push workflow state + any in-progress task branches:
+- Push from machine A:
   - `git push <remote> burl`
   - `git push <remote> <task-branch>`
-- On machine B: fetch the workflow branch locally, then init to attach the worktree:
+- Attach from machine B:
   - `git fetch <remote> burl:burl`
   - `burl init`
 
-## Agent dispatch
+## Agent dispatch and automation
 
 ```bash
-# list configured agents
+# Agent profiles
 burl agent list
 
-# dispatch an agent to work on a claimed task
+# Run a configured agent on a claimed task
 burl agent run TASK-001
-
-# use a specific agent (overrides task/default assignment)
 burl agent run TASK-001 --agent claude-code
-
-# preview what would run without executing
 burl agent run TASK-001 --dry-run
-```
 
-Requires `.burl/.workflow/agents.yaml` and a task in the `DOING` bucket (claimed with `burl claim`).
-
-## Live dashboard + automation
-
-```bash
-# lightweight TUI-style dashboard (alias: `visualizer`)
+# Workflow dashboard
 burl monitor
 
-# automation loop: claim READY tasks up to max_parallel, validate QA tasks
+# Automation loop
 burl watch
-
-# also auto-approve QA tasks (runs validations via approve)
 burl watch --approve
-
-# fully automated: claim, dispatch agents, and validate/approve
 burl watch --dispatch --approve
 ```
 
-## Files and folders
+`burl agent run` requires `.burl/.workflow/agents.yaml` and a task in `DOING`.
 
-Default layout:
+## Layout
 
-```
-.burl/                 # canonical workflow worktree (branch: burl)
+```text
+.burl/                 # Canonical workflow worktree (branch: burl)
   .workflow/
     READY/ DOING/ QA/ DONE/ BLOCKED/
     config.yaml
-    agents.yaml        # agent configuration
-    prompts/           # generated agent prompts
-    agent-logs/        # agent stdout/stderr (untracked)
+    agents.yaml
+    prompts/
+    agent-logs/        # Untracked
     events/events.ndjson
-    locks/             # untracked, machine-local
+    locks/             # Untracked, machine-local
 
 .worktrees/
-  task-001-.../        # per-task worktrees
+  task-001-.../        # Per-task Git worktrees
 ```
 
 ## Configuration
 
-Workflow config lives at `.burl/.workflow/config.yaml`.
+Workflow config is `.burl/.workflow/config.yaml`.
 
-Common knobs:
+Common keys:
 - `main_branch`, `remote`
-- `build_command` (legacy single-step hook; empty string disables build/test validation)
-- `validation_profiles`, `default_validation_profile` (multi-step pipeline; optional)
+- `build_command` (legacy single-step build/test hook)
+- `validation_profiles`, `default_validation_profile`
 - `stub_patterns`, `stub_check_extensions`
 - `merge_strategy`, `conflict_detection`, `conflict_policy`
 - `workflow_auto_commit`, `workflow_auto_push`
 
-## Agent configuration
+Agent profiles are in `.burl/.workflow/agents.yaml`.
 
-Edit `.burl/.workflow/agents.yaml` (scaffolded by `burl init`) to configure agent profiles:
+For full prompt template and placeholder reference, see `burl.md`.
 
-```yaml
-agents:
-  claude-code:
-    name: "Claude Code CLI"
-    command: "claude -p \"{prompt_file}\""
-    timeout_seconds: 600
-    default: true
+## Documentation map
 
-  crush:
-    name: "Crush"
-    command: "crush run --task \"{task_file}\" --prompt \"{prompt_file}\""
-    timeout_seconds: 1800
-    capabilities: [multi-file, refactoring]
+- `burl.md`: product requirements and spec
+- `ARCHITECTURE.md`: code map and invariants
+- `ROADMAP.md`: short- and long-term plan
+- `AGENTS.md`: contributor and agent quick reference
+- `CLAUDE.md`: repo constraints and implementation notes
 
-defaults:
-  timeout_seconds: 600
-  prompt_template: default
-
-prompt_templates:
-  default: |
-    # Task: {title}
-    ## Objective
-    {objective}
-    ## Acceptance Criteria
-    {acceptance_criteria}
-```
-
-Note: commands are split using shell-style quoting. Quote placeholders like `"{prompt_file}"` if paths may contain spaces.
-
-Template variables available in commands and prompts:
-- Identity: `{task_id}`, `{title}`, `{priority}`
-- Paths: `{prompt_file}`, `{task_file}`, `{worktree}`
-- Scope: `{affects}`, `{affects_globs}`, `{must_not_touch}`
-- Git/worktree: `{branch}`, `{base_sha}`
-- Task metadata: `{tags}`, `{depends_on}`
-- Task body sections: `{objective}`, `{acceptance_criteria}`, `{context}`, `{implementation_notes}`, `{test_plan}`, `{body}`
-
-## Development
+## Development validation
 
 ```bash
 cargo fmt
@@ -184,9 +137,4 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
-If `cargo check`/`cargo clippy` fails with `Invalid cross-device link (os error 18)`, treat it as an environment/toolchain issue and use `cargo build` + `cargo test` as the validation gate.
-
-## Docs
-
-- Spec / PRD: `burl.md`
-- Roadmap: `ROADMAP.md`
+If `cargo check` or `cargo clippy` fails with `Invalid cross-device link (os error 18)`, treat it as an environment/toolchain issue and use `cargo build` plus `cargo test` as the mechanical gate.
